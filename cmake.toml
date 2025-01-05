@@ -1,0 +1,37 @@
+# Reference: https://build-cpp.github.io/cmkr/cmake-toml
+[cmake]
+version = "3.25"
+
+[project]
+name = "zyemu"
+
+[subdir.thirdparty]
+
+[target.zyemu]
+type = "static"
+alias = "zyemu::zyemu"
+sources = [
+    "src/zyemu/cpu.cpp",
+    "src/zyemu/codegen.cpp",
+    "src/zyemu/assembler.cpp",
+    "src/zyemu/registers.cpp",
+]
+headers = [
+    "src/zyemu/assembler.hpp",
+    "src/zyemu/codegen.hpp",
+    "src/zyemu/internal.hpp",
+    "src/zyemu/registers.hpp",
+    "include/zyemu/zyemu.hpp",
+    "include/zyemu/types.hpp",
+]
+include-directories = ["include"]
+compile-features = ["cxx_std_23"]
+link-libraries = ["Zydis", "sfl::sfl"]
+
+[target.zyemu-playground]
+type = "executable"
+sources = [
+    "src/playground/main.cpp"
+]
+compile-features = ["cxx_std_23"]
+link-libraries = ["zyemu::zyemu"]
