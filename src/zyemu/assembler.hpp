@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <sfl/small_vector.hpp>
 #include <sfl/static_vector.hpp>
 #include <variant>
 #include <vector>
@@ -202,7 +203,7 @@ namespace zyemu::x86
     {
         using Node = std::variant<Instruction, Label>;
 
-        std::vector<Node> _nodes;
+        sfl::small_vector<Node, 64> _nodes;
         std::int32_t labelId{};
 
     public:
