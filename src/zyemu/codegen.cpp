@@ -271,7 +271,7 @@ namespace zyemu::codecache
                 return true;
         }
 
-        // If the insntructions reads or writes memory we need to call the memory
+        // If the instruction reads or writes memory we need to call the memory
         // read/write handlers.
         for (std::size_t i = 0; i < instr.data.operand_count; ++i)
         {
@@ -557,15 +557,10 @@ namespace zyemu::codecache
         return StatusCode::success;
     }
 
+    template<ZydisMnemonic TCondMov>
     static inline StatusCode handleInstrJcc(GeneratorState& state, detail::CPUState* cpuState, const DecodedInstruction& instr)
     {
         auto& a = state.assembler;
-
-        // Restore flags.
-        auto regInfoFlags = getContextRegInfo(cpuState, ZYDIS_REGISTER_FLAGS);
-        a.mov(x86::rax, x86::qword_ptr(state.regCtx, regInfoFlags.offset));
-        a.push(x86::rax);
-        a.popfq();
 
         assert(instr.operands[0].type == ZYDIS_OPERAND_TYPE_IMMEDIATE);
 
@@ -574,60 +569,7 @@ namespace zyemu::codecache
 
         // If the jcc cond is true mov r8 to rax, otherwise rax is just this instruction.
         // Cmovcc based on mnemonic.
-        switch (instr.data.mnemonic)
-        {
-            case ZYDIS_MNEMONIC_JB:
-                a.emit(ZYDIS_MNEMONIC_CMOVNB, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JBE:
-                a.emit(ZYDIS_MNEMONIC_CMOVNBE, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JL:
-                a.emit(ZYDIS_MNEMONIC_CMOVNL, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JLE:
-                a.emit(ZYDIS_MNEMONIC_CMOVNLE, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JNB:
-                a.emit(ZYDIS_MNEMONIC_CMOVB, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JNBE:
-                a.emit(ZYDIS_MNEMONIC_CMOVBE, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JNL:
-                a.emit(ZYDIS_MNEMONIC_CMOVL, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JNLE:
-                a.emit(ZYDIS_MNEMONIC_CMOVLE, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JNO:
-                a.emit(ZYDIS_MNEMONIC_CMOVNO, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JNP:
-                a.emit(ZYDIS_MNEMONIC_CMOVNP, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JNS:
-                a.emit(ZYDIS_MNEMONIC_CMOVNS, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JNZ:
-                a.emit(ZYDIS_MNEMONIC_CMOVNZ, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JO:
-                a.emit(ZYDIS_MNEMONIC_CMOVO, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JP:
-                a.emit(ZYDIS_MNEMONIC_CMOVP, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JS:
-                a.emit(ZYDIS_MNEMONIC_CMOVS, x86::rax, x86::r8);
-                break;
-            case ZYDIS_MNEMONIC_JZ:
-                a.emit(ZYDIS_MNEMONIC_CMOVZ, x86::rax, x86::r8);
-                break;
-            default:
-                assert(false);
-                return StatusCode::invalidOperation;
-        }
+        a.emit(TCondMov, x86::rax, x86::r8);
 
         // Add rax to rip.
         const auto regInfoIp = getContextRegInfo(cpuState, ZYDIS_REGISTER_RIP);
@@ -828,22 +770,22 @@ namespace zyemu::codecache
         std::fill(table.begin(), table.end(), handleInstrGeneric);
 
         table[ZYDIS_MNEMONIC_CALL] = handleInstrCall;
-        table[ZYDIS_MNEMONIC_JB] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JBE] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JL] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JLE] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JNB] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JNBE] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JNL] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JNLE] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JNO] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JNP] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JNS] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JNZ] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JO] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JP] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JS] = handleInstrJcc;
-        table[ZYDIS_MNEMONIC_JZ] = handleInstrJcc;
+        table[ZYDIS_MNEMONIC_JB] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVNB>;
+        table[ZYDIS_MNEMONIC_JBE] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVNBE>;
+        table[ZYDIS_MNEMONIC_JL] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVNL>;
+        table[ZYDIS_MNEMONIC_JLE] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVNLE>;
+        table[ZYDIS_MNEMONIC_JNB] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVB>;
+        table[ZYDIS_MNEMONIC_JNBE] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVBE>;
+        table[ZYDIS_MNEMONIC_JNL] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVL>;
+        table[ZYDIS_MNEMONIC_JNLE] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVLE>;
+        table[ZYDIS_MNEMONIC_JNO] = handleInstrJcc<ZYDIS_MNEMONIC_JNO>;
+        table[ZYDIS_MNEMONIC_JNP] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVNP>;
+        table[ZYDIS_MNEMONIC_JNS] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVNS>;
+        table[ZYDIS_MNEMONIC_JNZ] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVNZ>;
+        table[ZYDIS_MNEMONIC_JO] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVO>;
+        table[ZYDIS_MNEMONIC_JP] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVP>;
+        table[ZYDIS_MNEMONIC_JS] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVS>;
+        table[ZYDIS_MNEMONIC_JZ] = handleInstrJcc<ZYDIS_MNEMONIC_CMOVZ>;
         table[ZYDIS_MNEMONIC_POP] = handleInstrPop;
         table[ZYDIS_MNEMONIC_PUSH] = handleInstrPush;
         table[ZYDIS_MNEMONIC_RET] = handleInstrRet;
