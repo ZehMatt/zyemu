@@ -864,7 +864,7 @@ namespace zyemu::codecache
         }
 
         // Sync virtual context.
-        if (instructionTestsFlags(instr))
+        //if (instructionTestsFlags(instr))
         {
             auto regInfo = getContextRegInfo(cpuState, ZYDIS_REGISTER_FLAGS);
             a.mov(x86::rax, x86::qword_ptr(state.regCtx, regInfo.offset));

@@ -34,4 +34,19 @@ sources = [
     "src/playground/main.cpp"
 ]
 compile-features = ["cxx_std_23"]
-link-libraries = ["zyemu::zyemu"]
+private-link-libraries = ["zyemu::zyemu"]
+
+[target.zyemu-tests]
+type = "executable"
+sources = [
+    "src/tests/main.cpp",
+    "src/tests/tests/emulation.cpp",
+    "src/tests/tests/emulation.testdata.cpp",
+]
+headers = [
+    "src/tests/testdata.hpp",
+    "src/tests/tests/memory.hpp",
+]
+private-include-directories = ["src/tests"]
+compile-features = ["cxx_std_23"]
+private-link-libraries = ["zyemu::zyemu", "GTest::gtest"]

@@ -93,3 +93,36 @@ get_directory_property(CMKR_VS_STARTUP_PROJECT DIRECTORY ${PROJECT_SOURCE_DIR} D
 if(NOT CMKR_VS_STARTUP_PROJECT)
 	set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT zyemu-playground)
 endif()
+
+# Target: zyemu-tests
+set(zyemu-tests_SOURCES
+	cmake.toml
+	"src/tests/main.cpp"
+	"src/tests/testdata.hpp"
+	"src/tests/tests/emulation.cpp"
+	"src/tests/tests/emulation.testdata.cpp"
+	"src/tests/tests/memory.hpp"
+)
+
+add_executable(zyemu-tests)
+
+target_sources(zyemu-tests PRIVATE ${zyemu-tests_SOURCES})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${zyemu-tests_SOURCES})
+
+target_compile_features(zyemu-tests PRIVATE
+	cxx_std_23
+)
+
+target_include_directories(zyemu-tests PRIVATE
+	"src/tests"
+)
+
+target_link_libraries(zyemu-tests PRIVATE
+	zyemu::zyemu
+	GTest::gtest
+)
+
+get_directory_property(CMKR_VS_STARTUP_PROJECT DIRECTORY ${PROJECT_SOURCE_DIR} DEFINITION VS_STARTUP_PROJECT)
+if(NOT CMKR_VS_STARTUP_PROJECT)
+	set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT zyemu-tests)
+endif()
