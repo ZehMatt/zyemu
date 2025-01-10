@@ -147,7 +147,7 @@ namespace zyemu::tests
             std::uint64_t rip{};
             ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
 
-            ASSERT_EQ(rip, 0x0000000140007198);
+            ASSERT_EQ(rip, memory::kShellCodeBaseAddress - 0x17C);
         }
 
         // Test with ZF == 1.

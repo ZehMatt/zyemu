@@ -1,6 +1,7 @@
 #include "memory.hpp"
 #include "testdata.hpp"
 
+#include <algorithm>
 #include <gtest/gtest.h>
 #include <zyemu/zyemu.hpp>
 
@@ -31,7 +32,8 @@ namespace zyemu::tests
             // Clear output regs.
             for (const auto& regData : testEntry.outputs)
             {
-                // TODO: Write CC bytes.
+                sfl::small_vector<std::uint8_t, 16> zeroData(regData.data.size(), 0);
+                ctx.setRegData(th1, regData.reg, zeroData);
             }
 
             // Assign all reg inputs.
@@ -67,8 +69,9 @@ namespace zyemu::tests
                     RawData actualData{};
                     actualData.resize(regData.data.size());
 
-                    ASSERT_EQ(ctx.getRegData(th1, regData.reg, actualData), zyemu::StatusCode::success);
-                    ASSERT_EQ(actualData, regData.data);
+                    ASSERT_EQ(ctx.getRegData(th1, regData.reg, actualData), zyemu::StatusCode::success)
+                        << ZydisRegisterGetString(regData.reg);
+                    ASSERT_EQ(actualData, regData.data) << ZydisRegisterGetString(regData.reg);
                 }
             }
         }

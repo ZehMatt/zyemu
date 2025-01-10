@@ -28,12 +28,12 @@ FetchContent_Declare(Zydis SYSTEM
 )
 FetchContent_MakeAvailable(Zydis)
 
-message(STATUS "Fetching GTest (release-1.11.0)...")
+message(STATUS "Fetching GTest (v1.15.2)...")
 FetchContent_Declare(GTest SYSTEM
 	GIT_REPOSITORY
 		"https://github.com/google/googletest"
 	GIT_TAG
-		release-1.11.0
+		v1.15.2
 )
 FetchContent_MakeAvailable(GTest)
 

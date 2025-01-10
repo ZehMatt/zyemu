@@ -18,7 +18,11 @@ namespace zyemu::tests
         kIntOverflow,
     };
 
+#ifdef _DEBUG
+    using RawData = std::vector<std::uint8_t>;
+#else
     using RawData = sfl::small_vector<std::uint8_t, 8>;
+#endif
 
     struct RegData
     {
@@ -339,6 +343,12 @@ namespace zyemu::tests
             return std::nullopt;
         }
         return parseTestData(fs);
+    }
+
+    inline std::ostream& operator<<(std::ostream& os, const InstrEntry& entry)
+    {
+        os << entry.instrText;
+        return os;
     }
 
 } // namespace zyemu::tests

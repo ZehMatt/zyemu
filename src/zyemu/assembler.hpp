@@ -95,11 +95,29 @@ namespace zyemu::x86
     {
         std::int64_t value{};
 
-        constexpr Imm() = default;
-
-        template<typename T>
-        constexpr Imm(T value)
-            : value{ static_cast<std::int64_t>(value) }
+        constexpr Imm() noexcept
+            : value{}
+        {
+        }
+        constexpr Imm(std::uint32_t imm) noexcept
+            : value{ static_cast<std::int32_t>(imm) }
+        {
+        }
+        constexpr Imm(std::int32_t imm) noexcept
+            : value{ imm }
+        {
+        }
+        constexpr Imm(std::int64_t imm) noexcept
+            : value{ imm }
+        {
+        }
+        constexpr Imm(std::uint64_t imm) noexcept
+            : value{ static_cast<std::int64_t>(imm) }
+        {
+        }
+        template<typename T, typename = std::enable_if_t<std::is_enum_v<T>>>
+        constexpr Imm(T imm)
+            : Imm(static_cast<std::underlying_type_t<T>>(imm))
         {
         }
     };
@@ -194,9 +212,9 @@ namespace zyemu::x86
         return Mem{ 32, ds, base, {}, disp, 0, {} };
     }
 
-    inline Mem ptr(std::uint16_t size, const Reg& base, std::int64_t disp = 0)
+    inline Mem ptr(std::uint16_t bitSize, const Reg& base, std::int64_t disp = 0)
     {
-        return Mem{ size, ds, base, {}, disp, 0, {} };
+        return Mem{ bitSize, ds, base, {}, disp, 0, {} };
     }
 
     class Assembler
@@ -230,7 +248,27 @@ namespace zyemu::x86
             return *this;
         }
 
-        template<typename Op0, typename Op1> Assembler& mov(const Op0& dst, const Op1& src)
+        Assembler& mov(const Reg& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOV, dst, src);
+        }
+
+        Assembler& mov(const Reg& dst, const Imm& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOV, dst, src);
+        }
+
+        Assembler& mov(const Reg& dst, const Mem& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOV, dst, src);
+        }
+
+        Assembler& mov(const Mem& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOV, dst, src);
+        }
+
+        Assembler& mov(const Mem& dst, const Imm& src)
         {
             return emit(ZYDIS_MNEMONIC_MOV, dst, src);
         }
@@ -248,6 +286,21 @@ namespace zyemu::x86
         template<typename Op0, typename Op1> Assembler& xor_(const Op0& dst, const Op1& src)
         {
             return emit(ZYDIS_MNEMONIC_XOR, dst, src);
+        }
+
+        template<typename Op0, typename Op1> Assembler& and_(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_AND, dst, src);
+        }
+
+        template<typename Op0, typename Op1> Assembler& ror(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_ROR, dst, src);
+        }
+
+        template<typename Op0, typename Op1> Assembler& rol(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_ROL, dst, src);
         }
 
         template<typename Op0> Assembler& lea(const Op0& dst, const Mem& src)

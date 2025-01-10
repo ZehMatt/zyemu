@@ -15,6 +15,25 @@ namespace zyemu
         std::uint16_t largeBitSize;
     };
 
+    namespace detail
+    {
+        inline bool isGp8Hi(ZydisRegister reg)
+        {
+            switch (reg)
+            {
+                case ZYDIS_REGISTER_AH:
+                case ZYDIS_REGISTER_CH:
+                case ZYDIS_REGISTER_DH:
+                case ZYDIS_REGISTER_BH:
+                    return true;
+                default:
+                    break;
+            }
+            return false;
+        }
+
+    } // namespace detail
+
     inline RegInfo getContextRegInfo(detail::CPUState* state, ZydisRegister reg)
     {
         const std::uint16_t regSize = ZydisRegisterGetWidth(state->mode, reg);
@@ -23,15 +42,9 @@ namespace zyemu
         const std::uint16_t largeByteSize = largeBitSize / 8U;
 
         const auto getLocalOffset = [](ZydisRegister reg) {
-            switch (reg)
+            if (detail::isGp8Hi(reg))
             {
-                case ZYDIS_REGISTER_AH:
-                case ZYDIS_REGISTER_CH:
-                case ZYDIS_REGISTER_DH:
-                case ZYDIS_REGISTER_BH:
-                    return 1;
-                default:
-                    break;
+                return 1;
             }
             return 0;
         };
@@ -44,7 +57,7 @@ namespace zyemu
             case ZydisRegisterClass::ZYDIS_REGCLASS_GPR64:
             {
                 const std::uint16_t baseOffset = offsetof(detail::ThreadContext, gpRegs);
-                const std::uint16_t regId = ZydisRegisterGetId(reg);
+                const std::uint16_t regId = ZydisRegisterGetId(largeReg);
                 const std::uint16_t regOffset = baseOffset + (regId * largeByteSize);
                 const std::uint16_t regOffsetWithLocal = regOffset + getLocalOffset(reg);
 
@@ -129,6 +142,56 @@ namespace zyemu
 
         assert(false);
         return {};
+    }
+
+    inline ZydisRegister changeRegSize(ZydisRegister reg, std::int32_t newBitWidth)
+    {
+        const ZydisRegisterClass regClass = ZydisRegisterGetClass(reg);
+        std::int32_t regId = ZydisRegisterGetId(reg);
+
+        switch (regClass)
+        {
+            case ZydisRegisterClass::ZYDIS_REGCLASS_GPR8:
+            case ZydisRegisterClass::ZYDIS_REGCLASS_GPR16:
+            case ZydisRegisterClass::ZYDIS_REGCLASS_GPR32:
+            case ZydisRegisterClass::ZYDIS_REGCLASS_GPR64:
+            {
+                switch (newBitWidth)
+                {
+                    case 8:
+                        if (regId >= 4)
+                        {
+                            // Because hi gp8 are in the list starting at 4 we need to skip them.
+                            regId = regId + 4;
+                        }
+                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_GPR8, regId);
+                    case 16:
+                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_GPR16, regId);
+                    case 32:
+                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_GPR32, regId);
+                    case 64:
+                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_GPR64, regId);
+                }
+                break;
+            }
+            case ZydisRegisterClass::ZYDIS_REGCLASS_XMM:
+            case ZydisRegisterClass::ZYDIS_REGCLASS_YMM:
+            case ZydisRegisterClass::ZYDIS_REGCLASS_ZMM:
+            {
+                switch (newBitWidth)
+                {
+                    case 128:
+                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_XMM, regId);
+                    case 256:
+                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_YMM, regId);
+                    case 512:
+                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_ZMM, regId);
+                }
+                break;
+            }
+        }
+        assert(false);
+        return ZYDIS_REGISTER_NONE;
     }
 
 } // namespace zyemu

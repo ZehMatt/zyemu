@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <ostream>
 #include <variant>
 
 namespace zyemu
@@ -38,6 +39,104 @@ namespace zyemu
         bufferTooSmall,
         outOfMemory,
     };
+
+    inline std::ostream& operator<<(std::ostream& os, const StatusCode& status)
+    {
+        switch (status)
+        {
+            case StatusCode::success:
+                os << "StatusCode::success";
+                break;
+            case StatusCode::invalidOperation:
+                os << "StatusCode::invalidOperation";
+                break;
+            case StatusCode::invalidArgument:
+                os << "StatusCode::invalidArgument";
+                break;
+            case StatusCode::invalidState:
+                os << "StatusCode::invalidState";
+                break;
+            case StatusCode::invalidInstruction:
+                os << "StatusCode::invalidInstruction";
+                break;
+            case StatusCode::invalidRegister:
+                os << "StatusCode::invalidRegister";
+                break;
+            case StatusCode::invalidMemory:
+                os << "StatusCode::invalidMemory";
+                break;
+            case StatusCode::invalidThread:
+                os << "StatusCode::invalidThread";
+                break;
+            case StatusCode::invalidCallback:
+                os << "StatusCode::invalidCallback";
+                break;
+            case StatusCode::invalidMode:
+                os << "StatusCode::invalidMode";
+                break;
+            case StatusCode::invalidAddress:
+                os << "StatusCode::invalidAddress";
+                break;
+            case StatusCode::invalidSize:
+                os << "StatusCode::invalidSize";
+                break;
+            case StatusCode::invalidAccess:
+                os << "StatusCode::invalidAccess";
+                break;
+            case StatusCode::invalidAlignment:
+                os << "StatusCode::invalidAlignment";
+                break;
+            case StatusCode::invalidLength:
+                os << "StatusCode::invalidLength";
+                break;
+            case StatusCode::invalidBuffer:
+                os << "StatusCode::invalidBuffer";
+                break;
+            case StatusCode::invalidUserData:
+                os << "StatusCode::invalidUserData";
+                break;
+            case StatusCode::invalidInstructionPointer:
+                os << "StatusCode::invalidInstructionPointer";
+                break;
+            case StatusCode::invalidStackPointer:
+                os << "StatusCode::invalidStackPointer";
+                break;
+            case StatusCode::invalidFramePointer:
+                os << "StatusCode::invalidFramePointer";
+                break;
+            case StatusCode::invalidBasePointer:
+                os << "StatusCode::invalidBasePointer";
+                break;
+            case StatusCode::invalidSegment:
+                os << "StatusCode::invalidSegment";
+                break;
+            case StatusCode::invalidFlags:
+                os << "StatusCode::invalidFlags";
+                break;
+            case StatusCode::invalidRounding:
+                os << "StatusCode::invalidRounding";
+                break;
+            case StatusCode::invalidMasking:
+                os << "StatusCode::invalidMasking";
+                break;
+            case StatusCode::invalidBroadcast:
+                os << "StatusCode::invalidBroadcast";
+                break;
+            case StatusCode::labelAlreadyBound:
+                os << "StatusCode::labelAlreadyBound";
+                break;
+            case StatusCode::bufferTooSmall:
+                os << "StatusCode::bufferTooSmall";
+                break;
+            case StatusCode::outOfMemory:
+                os << "StatusCode::outOfMemory";
+                break;
+            default:
+                assert(false);
+                break;
+        }
+        return os;
+    }
 
     template<typename TResult> struct Result
     {

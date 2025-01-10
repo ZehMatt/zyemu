@@ -6,6 +6,7 @@
 
 #include <Zydis/Decoder.h>
 #include <cassert>
+#include <set>
 #include <sfl/static_flat_set.hpp>
 #include <sfl/static_vector.hpp>
 
@@ -16,7 +17,11 @@
 
 namespace zyemu::codecache
 {
+#ifdef _DEBUG
+    using RegSet = std::set<ZydisRegister>;
+#else
     using RegSet = sfl::static_flat_set<ZydisRegister, 8>;
+#endif
 
     struct DecodedInstruction
     {
@@ -80,21 +85,27 @@ namespace zyemu::codecache
 
         std::map<ZydisRegister, x86::Reg> regMap{};
 
-        x86::Reg allocGpReg(bool nonVolatile)
+        x86::Reg allocGpReg(bool nonVolatile, std::int32_t width)
         {
             if (!nonVolatile)
             {
                 assert(!freeVolatileGpRegs.empty());
+
                 auto reg = freeVolatileGpRegs.back();
                 freeVolatileGpRegs.pop_back();
-                return reg;
+
+                const auto resized = changeRegSize(reg.value, width);
+                return x86::Reg{ resized };
             }
             else
             {
                 assert(!freeNonVolatileGpRegs.empty());
+
                 auto reg = freeNonVolatileGpRegs.back();
                 freeNonVolatileGpRegs.pop_back();
-                return reg;
+
+                const auto resized = changeRegSize(reg.value, width);
+                return x86::Reg{ resized };
             }
         }
 
@@ -168,6 +179,21 @@ namespace zyemu::codecache
         return reg >= ZYDIS_REGISTER_AL && reg <= ZYDIS_REGISTER_R15;
     }
 
+    static inline bool isGp8Hi(ZydisRegister reg)
+    {
+        switch (reg)
+        {
+            case ZYDIS_REGISTER_AH:
+            case ZYDIS_REGISTER_CH:
+            case ZYDIS_REGISTER_DH:
+            case ZYDIS_REGISTER_BH:
+                return true;
+            default:
+                break;
+        }
+        return false;
+    }
+
     static inline bool instructionModifiesFlags(const DecodedInstruction& instr)
     {
         return (instr.data.cpu_flags->modified | instr.data.cpu_flags->set_0 | instr.data.cpu_flags->set_1
@@ -203,17 +229,17 @@ namespace zyemu::codecache
             const auto& op = instr.operands[i];
             if (op.type == ZYDIS_OPERAND_TYPE_REGISTER && (op.actions & ZYDIS_OPERAND_ACTION_MASK_READ) != 0)
             {
-                regs.insert(ZydisRegisterGetLargestEnclosing(instr.data.machine_mode, op.reg.value));
+                regs.insert(op.reg.value);
             }
             else if (op.type == ZYDIS_OPERAND_TYPE_MEMORY)
             {
                 if (op.mem.base != ZYDIS_REGISTER_NONE)
                 {
-                    regs.insert(ZydisRegisterGetLargestEnclosing(instr.data.machine_mode, op.mem.base));
+                    regs.insert(op.mem.base);
                 }
                 if (op.mem.index != ZYDIS_REGISTER_NONE)
                 {
-                    regs.insert(ZydisRegisterGetLargestEnclosing(instr.data.machine_mode, op.mem.index));
+                    regs.insert(op.mem.index);
                 }
             }
         }
@@ -229,7 +255,7 @@ namespace zyemu::codecache
             const auto& op = instr.operands[i];
             if (op.type == ZYDIS_OPERAND_TYPE_REGISTER && (op.actions & ZYDIS_OPERAND_ACTION_MASK_WRITE) != 0)
             {
-                regs.insert(ZydisRegisterGetLargestEnclosing(instr.data.machine_mode, op.reg.value));
+                regs.insert(op.reg.value);
             }
         }
         return regs;
@@ -242,25 +268,14 @@ namespace zyemu::codecache
             return x86::Reg{};
         }
 
-        const auto largeReg = ZydisRegisterGetLargestEnclosing(state.mode, reg);
-        if (!state.regMap.contains(largeReg))
+        if (!state.regMap.contains(reg))
         {
             assert(false);
             return x86::Reg{};
         }
 
-        // TODO: This probably doesn't work for gp8 as as it may be hi/lo so the id doesn't align.
-        const auto remappedReg = state.regMap[largeReg];
-        if (ZydisRegisterGetWidth(state.mode, reg) == ZydisRegisterGetWidth(state.mode, remappedReg.value))
-        {
-            return remappedReg;
-        }
-
-        // Convert it to the size expected.
-        const auto cls = ZydisRegisterGetClass(reg);
-        const auto newReg = ZydisRegisterEncode(cls, ZydisRegisterGetId(remappedReg.value));
-
-        return x86::Reg{ newReg };
+        const auto remappedReg = state.regMap[reg];
+        return remappedReg;
     }
 
     static inline bool requiresExternalCall(const DecodedInstruction& instr)
@@ -593,13 +608,16 @@ namespace zyemu::codecache
             x86::Reg dstReg;
             std::int32_t srcSaveOffset;
             std::int32_t dstSaveOffset;
-            std::int32_t bitSize;
+            std::int32_t dstBitSize;
+            std::int32_t addrBitSize;
         };
 
         sfl::static_vector<MemWriteData, 16> memWrites;
 
         std::int32_t regSaveOffset = 0;
         std::int32_t memBufferOffset = 0;
+
+        RegSet pushedRegs{};
 
         x86::Instruction newInstr{};
         newInstr.mnemonic = instr.data.mnemonic;
@@ -651,8 +669,8 @@ namespace zyemu::codecache
                 {
                     // We need to set a register as the destination so we can write that into our buffer
                     // and then call the memory write handler.
-                    const auto destReg = state.allocGpReg(true);
-                    const auto memAddrReg = state.allocGpReg(true);
+                    const auto destReg = state.allocGpReg(true, opSrc.size);
+                    const auto memAddrReg = state.allocGpReg(true, instr.data.address_width);
 
                     // Compute address.
                     x86::Mem leaMem{};
@@ -664,17 +682,18 @@ namespace zyemu::codecache
 
                     MemWriteData memWriteData{};
                     memWriteData.dstReg = destReg;
+                    memWriteData.dstBitSize = opSrc.size;
                     memWriteData.memAddrReg = memAddrReg;
-                    memWriteData.bitSize = opSrc.size;
+                    memWriteData.addrBitSize = instr.data.address_width;
 
                     // Save registers, non-volatile need to be saved.
-                    a.mov(x86::qword_ptr(x86::rsp, kSpillAreaOffset + regSaveOffset), memAddrReg);
+                    a.mov(x86::ptr(instr.data.address_width, x86::rsp, kSpillAreaOffset + regSaveOffset), memAddrReg);
                     memWriteData.dstSaveOffset = regSaveOffset;
-                    regSaveOffset += 8;
+                    regSaveOffset += (instr.data.address_width / 8);
 
-                    a.mov(x86::qword_ptr(x86::rsp, kSpillAreaOffset + regSaveOffset), destReg);
+                    a.mov(x86::ptr(opSrc.size, x86::rsp, kSpillAreaOffset + regSaveOffset), destReg);
                     memWriteData.srcSaveOffset = regSaveOffset;
-                    regSaveOffset += 8;
+                    regSaveOffset += (opSrc.size / 8);
 
                     // Store memory write address.
                     a.lea(memAddrReg, leaMem);
@@ -693,7 +712,15 @@ namespace zyemu::codecache
                 assert(false);
             }
         }
+
         a.emit(newInstr);
+
+        for (auto pushedReg : pushedRegs)
+        {
+            const auto ctxReg = state.regMap[pushedReg];
+            a.mov(ctxReg, pushedReg);
+            a.pop(x86::Reg{ pushedReg });
+        }
 
         // Capture flags before we do any other operations.
         if (instructionModifiesFlags(instr))
@@ -701,6 +728,8 @@ namespace zyemu::codecache
             auto regInfo = getContextRegInfo(cpuState, ZYDIS_REGISTER_FLAGS);
             a.pushfq();
             a.pop(x86::rax);
+            // Remove the interrupt flag.
+            a.and_(x86::eax, x86::Imm(0xFFFFFDFF));
             a.mov(x86::qword_ptr(state.regCtx, regInfo.offset), x86::rax);
         }
 
@@ -708,13 +737,13 @@ namespace zyemu::codecache
         for (const auto& memWrite : memWrites)
         {
             // Write value to stack.
-            a.mov(x86::ptr(memWrite.bitSize, x86::rsp, kHomeAreaSize), memWrite.dstReg);
+            a.mov(x86::ptr(memWrite.dstBitSize, x86::rsp, kHomeAreaSize), memWrite.dstReg);
 
             // Call memory write handler.
             a.mov(x86::ecx, x86::dword_ptr(state.regCtx, offsetof(detail::ThreadContext, tid)));
             a.mov(x86::rdx, memWrite.memAddrReg);
             a.lea(x86::r8, x86::qword_ptr(x86::rsp, kHomeAreaSize));
-            a.mov(x86::r9, x86::Imm(memWrite.bitSize / 8));
+            a.mov(x86::r9, x86::Imm(memWrite.dstBitSize / 8));
             a.push(x86::Imm(0)); // FIXME: userData
 
             a.mov(x86::rax, x86::Imm(reinterpret_cast<std::intptr_t>(cpuState->memWriteHandler)));
@@ -722,28 +751,33 @@ namespace zyemu::codecache
             a.lea(x86::rsp, x86::qword_ptr(x86::rsp, 8));
 
             // Restore registers.
-            a.mov(memWrite.memAddrReg, x86::qword_ptr(x86::rsp, kSpillAreaOffset + memWrite.dstSaveOffset));
-            a.mov(memWrite.dstReg, x86::qword_ptr(x86::rsp, kSpillAreaOffset + memWrite.srcSaveOffset));
+            a.mov(memWrite.memAddrReg, x86::ptr(memWrite.dstBitSize, x86::rsp, kSpillAreaOffset + memWrite.dstSaveOffset));
+            a.mov(memWrite.dstReg, x86::ptr(memWrite.addrBitSize, x86::rsp, kSpillAreaOffset + memWrite.srcSaveOffset));
 
             a.test(x86::rax, x86::rax);
             a.jnz(state.lblExit);
         }
 
         // Write from re-mapped registers to context.
-        for (auto& regW : instr.regsModified)
+        for (auto regW : instr.regsModified)
         {
             if (!isAddressableReg(regW))
             {
                 continue;
             }
 
-            const auto remappedReg = state.regMap[regW];
-
-            const auto regInfo = getContextRegInfo(cpuState, regW);
+            auto remappedReg = state.regMap[regW];
+            const auto regBitSize = ZydisRegisterGetWidth(state.mode, regW);
 
             if (isGpReg(regW))
             {
-                a.mov(x86::qword_ptr(state.regCtx, regInfo.offset), state.regMap[regW]);
+                if (regBitSize == 32 && state.mode == ZydisMachineMode::ZYDIS_MACHINE_MODE_LONG_64)
+                {
+                    regW = ZydisRegisterGetLargestEnclosing(state.mode, regW);
+                    remappedReg = x86::Reg{ changeRegSize(remappedReg.value, 64) };
+                }
+                const auto regInfo = getContextRegInfo(cpuState, regW);
+                a.mov(x86::ptr(regInfo.bitSize, state.regCtx, regInfo.offset), remappedReg);
             }
             else
             {
@@ -809,7 +843,7 @@ namespace zyemu::codecache
         {
             // Use a different register for the context, we need rcx to pass arguments.
             // We do this first before allocating registers for remapping the context.
-            state.regCtx = state.allocGpReg(true);
+            state.regCtx = state.allocGpReg(true, 64);
         }
 
         // Remap registers and sync context.
@@ -822,7 +856,8 @@ namespace zyemu::codecache
 
             if (isGpReg(reg))
             {
-                auto newReg = state.allocGpReg(state.requiresExternalCalls);
+                const auto regSize = ZydisRegisterGetWidth(state.mode, reg);
+                auto newReg = state.allocGpReg(state.requiresExternalCalls, regSize);
                 state.regMap[reg] = newReg;
             }
             else
@@ -845,10 +880,14 @@ namespace zyemu::codecache
                 {
                     continue;
                 }
-                if (remappedReg.isGp64())
+
+                if (remappedReg.isGp())
                 {
-                    a.push(remappedReg);
-                    savedRegsSize += 8;
+                    const auto largeReg = ZydisRegisterGetLargestEnclosing(state.mode, remappedReg.value);
+                    a.push(x86::Reg{ largeReg });
+
+                    const auto regSize = ZydisRegisterGetWidth(state.mode, largeReg);
+                    savedRegsSize += (regSize / 8);
                 }
                 else
                 {
@@ -864,7 +903,7 @@ namespace zyemu::codecache
         }
 
         // Sync virtual context.
-        //if (instructionTestsFlags(instr))
+        // if (instructionTestsFlags(instr))
         {
             auto regInfo = getContextRegInfo(cpuState, ZYDIS_REGISTER_FLAGS);
             a.mov(x86::rax, x86::qword_ptr(state.regCtx, regInfo.offset));
@@ -886,7 +925,7 @@ namespace zyemu::codecache
 
             if (isGpReg(regR))
             {
-                a.mov(remappedReg, x86::qword_ptr(state.regCtx, regInfo.offset));
+                a.mov(remappedReg, x86::ptr(regInfo.bitSize, state.regCtx, regInfo.offset));
             }
             else
             {
@@ -951,6 +990,7 @@ namespace zyemu::codecache
         instruction.address = rip;
         instruction.regsRead = getRegsRead(instruction);
         instruction.regsModified = getRegsModified(instruction);
+
         instruction.regsUsed = instruction.regsRead;
         instruction.regsUsed.insert(instruction.regsModified.begin(), instruction.regsModified.end());
 

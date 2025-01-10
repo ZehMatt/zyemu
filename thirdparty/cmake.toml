@@ -14,7 +14,7 @@ system = true
 
 [fetch-content.GTest]
 git = "https://github.com/google/googletest"
-tag = "release-1.11.0"
+tag = "v1.15.2"
 system = true
 
 [fetch-content.GBenchmark]
