@@ -311,15 +311,18 @@ namespace zyemu::codegen
 
     static x86::Reg getRemappedReg(GeneratorState& state, x86::Reg reg)
     {
-        x86::Reg regOp{ reg };
+        if (!reg.isValid())
+        {
+            return x86::Reg{};
+        }
 
-        const auto inputRegSize = ZydisRegisterGetWidth(state.mode, regOp);
-        const auto largeReg = ZydisRegisterGetLargestEnclosing(state.mode, regOp);
+        const auto inputRegSize = ZydisRegisterGetWidth(state.mode, reg);
+        const auto largeReg = ZydisRegisterGetLargestEnclosing(state.mode, reg);
 
         assert(state.regRemap.contains(largeReg));
         const auto remappedRegRoot = state.regRemap[largeReg];
 
-        const auto resizedReg = changeRegSize(remappedRegRoot, inputRegSize, regOp.isGp8Hi());
+        const auto resizedReg = changeRegSize(remappedRegRoot, inputRegSize, reg.isGp8Hi());
 
         return resizedReg;
     }
@@ -466,7 +469,34 @@ namespace zyemu::codegen
                 else if (oldOp.type == ZydisOperandType::ZYDIS_OPERAND_TYPE_MEMORY)
                 {
                     x86::Mem memOp{};
-                    memOp.base = x86::Reg{ oldOp.mem.base };
+                    memOp.bitSize = oldOp.size;
+                    memOp.seg = x86::Seg{ oldOp.mem.segment };
+                    memOp.base = getRemappedReg(state, oldOp.mem.base);
+                    memOp.index = getRemappedReg(state, oldOp.mem.index);
+                    memOp.scale = oldOp.mem.scale;
+                    memOp.disp = oldOp.mem.disp.value;
+
+                    if (oldOp.actions & ZYDIS_OPERAND_ACTION_MASK_READ)
+                    {
+                        // TODO: Handle read memory.
+                    }
+                    else if (oldOp.actions & ZYDIS_OPERAND_ACTION_MASK_WRITE)
+                    {
+                        // TODO: Handle write memory.
+                    }
+                    else
+                    {
+                        // Possible agen.
+                        if (oldOp.mem.type == ZydisMemoryOperandType::ZYDIS_MEMOP_TYPE_AGEN)
+                        {
+                            newInstr.operands.push_back(memOp);
+                        }
+                        else
+                        {
+                            // This should not happen.
+                            assert(false);
+                        }
+                    }
                 }
                 else if (oldOp.type == ZydisOperandType::ZYDIS_OPERAND_TYPE_IMMEDIATE)
                 {

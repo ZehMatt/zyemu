@@ -156,13 +156,38 @@ namespace zyemu::tests
 
     // clang-format off
     static const std::vector<std::string> allTestFiles = {
-        //"testdata/div.txt",
-        //"testdata/mul.txt",
+        //"testdata/div.txt", // not handled properly
+        //"testdata/mul.txt", // not handled properly
         //"testdata/scasb.txt",
         //"testdata/scasd.txt",
         //"testdata/scasq.txt",
-        //"testdata/lea.txt",
         //"testdata/cmpsb.txt",
+        //"testdata/shld.txt", // fails
+        //"testdata/lar.txt", // fails
+        "testdata/xadd.txt",
+        "testdata/std.txt",
+        "testdata/shlx.txt",
+        "testdata/sarx.txt",
+        "testdata/sahf.txt",
+        "testdata/rorx.txt",
+        "testdata/rcl.txt",
+        "testdata/lzcnt.txt",
+        "testdata/inc.txt",
+        "testdata/cwde.txt",
+        "testdata/cwd.txt",
+        "testdata/cqo.txt",
+        "testdata/cmc.txt",
+        "testdata/cbw.txt",
+        "testdata/bzhi.txt",
+        "testdata/blsr.txt",
+        "testdata/blsmsk.txt",
+        "testdata/blsi.txt",
+        "testdata/bextr.txt",
+        "testdata/andn.txt",
+        "testdata/adc.txt",
+        "testdata/adcx.txt",
+        "testdata/adox.txt",
+        "testdata/lea.txt",
         "testdata/clc.txt",
         "testdata/cld.txt",
         "testdata/stc.txt",
