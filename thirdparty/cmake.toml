@@ -9,7 +9,7 @@ BENCHMARK_USE_BUNDLED_GTEST = false
 
 [fetch-content.Zydis]
 git = "https://github.com/zyantific/zydis"
-tag = "v4.1.0"
+tag = "f2ad85f92fc6645a642053882eaf0e95693977e9"
 system = true
 
 [fetch-content.GTest]
@@ -24,4 +24,4 @@ system = true
 
 [fetch-content.sfl]
 git = "https://github.com/slavenf/sfl-library.git"
-tag = "1.9.0"
+tag = "1.10.1"

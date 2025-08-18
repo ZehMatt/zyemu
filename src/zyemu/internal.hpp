@@ -1,7 +1,5 @@
 #pragma once
 
-#include "unordered_dense.h"
-
 #include <Zydis/Decoder.h>
 #include <array>
 #include <map>
@@ -27,16 +25,17 @@ namespace zyemu
         struct ThreadContext
         {
             // We use the largest possible size as its backwards compatible with smaller registers.
-            using GpReg = std::array<std::uint8_t, 8>;
-            using MmxReg = std::array<std::uint8_t, 8>;
-            using X87Reg = std::array<std::uint8_t, 10>;
-            using TmmReg = std::array<std::uint8_t, 16>;
-            using ZmmReg = std::array<std::uint8_t, 64>;
-            using KReg = std::array<std::uint8_t, 64>;
+            using GpReg = std::array<std::byte, 8>;
+            using MmxReg = std::array<std::byte, 8>;
+            using X87Reg = std::array<std::byte, 10>;
+            using TmmReg = std::array<std::byte, 16>;
+            using ZmmReg = std::array<std::byte, 64>;
+            using KReg = std::array<std::byte, 64>;
 
             // Not really part of the context but can be useful for callbacks.
             CPUState* cpuState{};
             ThreadId tid{ ThreadId::invalid };
+            StatusCode status{ StatusCode::success };
 
             std::uint64_t rip{};
             std::uint64_t flags{};
@@ -59,7 +58,7 @@ namespace zyemu
             std::uint64_t base{};
             std::size_t size{};
             std::size_t capacity{};
-            std::uint8_t* data{};
+            std::byte* data{};
         };
 
         using CodeCacheFunc = StatusCode (*)(ThreadContext* th);
@@ -81,7 +80,11 @@ namespace zyemu
                 std::uint64_t high;
             };
 
-            std::array<std::uint8_t, 16> data{};
+            struct
+            {
+                std::uint8_t length;
+                std::array<std::byte, 15> data;
+            };
 
             constexpr bool operator==(const InstructionData& other) const
             {
@@ -93,19 +96,14 @@ namespace zyemu
                 return std::tie(low, high) < std::tie(other.low, other.high);
             }
 
-            constexpr std::uint8_t length() const
+            constexpr std::span<std::byte> buffer()
             {
-                return data[0];
+                return { data.data(), length };
             }
 
-            constexpr std::uint8_t* buffer()
+            constexpr std::span<const std::byte> buffer() const
             {
-                return data.data() + 1;
-            }
-
-            constexpr const std::uint8_t* buffer() const
-            {
-                return data.data() + 1;
+                return { data.data(), length };
             }
         };
 
@@ -134,6 +132,7 @@ namespace zyemu
 
             MemoryReadHandler memReadHandler{};
             void* memReadUserData{};
+
             MemoryWriteHandler memWriteHandler{};
             void* memWriteUserData{};
 

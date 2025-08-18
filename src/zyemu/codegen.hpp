@@ -4,7 +4,7 @@
 
 #include <zyemu/types.hpp>
 
-namespace zyemu::codecache
+namespace zyemu::codegen
 {
 
     Result<detail::CodeCacheFunc> generate(

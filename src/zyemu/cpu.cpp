@@ -1,3 +1,4 @@
+#include "codecache.hpp"
 #include "codegen.hpp"
 #include "internal.hpp"
 #include "registers.hpp"
@@ -15,7 +16,15 @@ namespace zyemu
 
     CPU::~CPU()
     {
+        assert(state != nullptr);
+
+        if (auto res = codecache::destroyCodeCache(state); res != StatusCode::success)
+        {
+            assert(false);
+        }
+
         delete state;
+        state = nullptr;
     }
 
     StatusCode CPU::setMode(ZydisMachineMode mode)
@@ -131,7 +140,7 @@ namespace zyemu
         th.state = ThreadState::dead;
     }
 
-    StatusCode CPU::setRegData(ThreadId tid, ZydisRegister reg, std::span<const std::uint8_t> data)
+    StatusCode CPU::setRegData(ThreadId tid, ZydisRegister reg, std::span<const std::byte> data)
     {
         auto* th = getThread(state, tid);
         if (!th)
@@ -139,7 +148,7 @@ namespace zyemu
             return StatusCode::invalidThread;
         }
 
-        const auto regInfo = getContextRegInfo(state, reg);
+        const auto regInfo = getContextRegInfo(state->mode, reg);
         if (regInfo.offset == 0)
         {
             return StatusCode::invalidRegister;
@@ -150,12 +159,12 @@ namespace zyemu
             return StatusCode::invalidRegister;
         }
 
-        std::memcpy(reinterpret_cast<std::uint8_t*>(&th->context) + regInfo.offset, data.data(), data.size());
+        std::memcpy(reinterpret_cast<std::byte*>(&th->context) + regInfo.offset, data.data(), data.size());
 
         return StatusCode::success;
     }
 
-    StatusCode CPU::getRegData(ThreadId tid, ZydisRegister reg, std::span<std::uint8_t> buffer)
+    StatusCode CPU::getRegData(ThreadId tid, ZydisRegister reg, std::span<std::byte> buffer)
     {
         auto* th = getThread(state, tid);
         if (!th)
@@ -163,7 +172,7 @@ namespace zyemu
             return StatusCode::invalidThread;
         }
 
-        const auto regInfo = getContextRegInfo(state, reg);
+        const auto regInfo = getContextRegInfo(state->mode, reg);
         if (regInfo.offset == 0)
         {
             return StatusCode::invalidRegister;
@@ -174,30 +183,30 @@ namespace zyemu
             return StatusCode::invalidRegister;
         }
 
-        std::memcpy(buffer.data(), reinterpret_cast<std::uint8_t*>(&th->context) + regInfo.offset, buffer.size());
+        std::memcpy(buffer.data(), reinterpret_cast<std::byte*>(&th->context) + regInfo.offset, buffer.size());
 
         return StatusCode::success;
     }
 
     static Result<InstructionData> getInstructionData(CPUState* state, ThreadId tid, std::uint64_t address)
     {
-        InstructionData instrBuf{};
+        InstructionData instrData{};
 
         ZydisDecodedInstruction instr;
         for (std::uint8_t i = 0U; i < 15U; i++)
         {
             // Try to read i bytes.
-            if (auto status = state->memReadHandler(tid, address + i, instrBuf.buffer() + i, 1, state->memReadUserData);
+            if (auto status = state->memReadHandler(tid, address + i, instrData.buffer().data() + i, 1, state->memReadUserData);
                 status != StatusCode::success)
             {
                 return status;
             }
 
-            auto status = ZydisDecoderDecodeInstruction(&state->ldeDecoder, nullptr, instrBuf.buffer(), i + 1, &instr);
+            auto status = ZydisDecoderDecodeInstruction(&state->ldeDecoder, nullptr, instrData.buffer().data(), i + 1, &instr);
             if (status == ZYAN_STATUS_SUCCESS)
             {
-                instrBuf.data[0] = i + 1;
-                return instrBuf;
+                instrData.length = i + 1;
+                return instrData;
             }
             else if (status == ZYDIS_STATUS_NO_MORE_DATA)
             {
@@ -238,7 +247,7 @@ namespace zyemu
         }
 
         // Generate code cache entry
-        auto result = codecache::generate(state, rip, *instrDataRes);
+        auto result = codegen::generate(state, rip, *instrDataRes);
         if (!result)
         {
             return result.getError();

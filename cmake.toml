@@ -12,12 +12,14 @@ type = "static"
 alias = "zyemu::zyemu"
 sources = [
     "src/zyemu/cpu.cpp",
+    "src/zyemu/codecache.cpp",
     "src/zyemu/codegen.cpp",
     "src/zyemu/assembler.cpp",
     "src/zyemu/registers.cpp",
 ]
 headers = [
     "src/zyemu/assembler.hpp",
+    "src/zyemu/codecache.hpp",
     "src/zyemu/codegen.hpp",
     "src/zyemu/internal.hpp",
     "src/zyemu/registers.hpp",
@@ -27,6 +29,7 @@ headers = [
 include-directories = ["include"]
 compile-features = ["cxx_std_23"]
 link-libraries = ["Zydis", "sfl::sfl"]
+private-link-options = ["$<$<CONFIG:Release>:/DEBUG>"]
 
 [target.zyemu-playground]
 type = "executable"
@@ -35,18 +38,22 @@ sources = [
 ]
 compile-features = ["cxx_std_23"]
 private-link-libraries = ["zyemu::zyemu"]
+private-link-options = ["$<$<CONFIG:Release>:/DEBUG>"]
 
 [target.zyemu-tests]
 type = "executable"
 sources = [
     "src/tests/main.cpp",
+    "src/tests/testdata.cpp",
     "src/tests/tests/emulation.cpp",
     "src/tests/tests/emulation.testdata.cpp",
+    "src/tests/tests/registers.cpp",
 ]
 headers = [
     "src/tests/testdata.hpp",
     "src/tests/tests/memory.hpp",
 ]
-private-include-directories = ["src/tests"]
+private-include-directories = ["src/tests", "src/zyemu"]
 compile-features = ["cxx_std_23"]
 private-link-libraries = ["zyemu::zyemu", "GTest::gtest"]
+private-link-options = ["$<$<CONFIG:Release>:/DEBUG>"]

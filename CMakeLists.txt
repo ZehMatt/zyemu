@@ -43,6 +43,8 @@ set(zyemu_SOURCES
 	"include/zyemu/zyemu.hpp"
 	"src/zyemu/assembler.cpp"
 	"src/zyemu/assembler.hpp"
+	"src/zyemu/codecache.cpp"
+	"src/zyemu/codecache.hpp"
 	"src/zyemu/codegen.cpp"
 	"src/zyemu/codegen.hpp"
 	"src/zyemu/cpu.cpp"
@@ -70,6 +72,10 @@ target_link_libraries(zyemu PUBLIC
 	sfl::sfl
 )
 
+target_link_options(zyemu PRIVATE
+	"$<$<CONFIG:Release>:/DEBUG>"
+)
+
 # Target: zyemu-playground
 set(zyemu-playground_SOURCES
 	cmake.toml
@@ -89,6 +95,10 @@ target_link_libraries(zyemu-playground PRIVATE
 	zyemu::zyemu
 )
 
+target_link_options(zyemu-playground PRIVATE
+	"$<$<CONFIG:Release>:/DEBUG>"
+)
+
 get_directory_property(CMKR_VS_STARTUP_PROJECT DIRECTORY ${PROJECT_SOURCE_DIR} DEFINITION VS_STARTUP_PROJECT)
 if(NOT CMKR_VS_STARTUP_PROJECT)
 	set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT zyemu-playground)
@@ -98,10 +108,12 @@ endif()
 set(zyemu-tests_SOURCES
 	cmake.toml
 	"src/tests/main.cpp"
+	"src/tests/testdata.cpp"
 	"src/tests/testdata.hpp"
 	"src/tests/tests/emulation.cpp"
 	"src/tests/tests/emulation.testdata.cpp"
 	"src/tests/tests/memory.hpp"
+	"src/tests/tests/registers.cpp"
 )
 
 add_executable(zyemu-tests)
@@ -115,11 +127,16 @@ target_compile_features(zyemu-tests PRIVATE
 
 target_include_directories(zyemu-tests PRIVATE
 	"src/tests"
+	"src/zyemu"
 )
 
 target_link_libraries(zyemu-tests PRIVATE
 	zyemu::zyemu
 	GTest::gtest
+)
+
+target_link_options(zyemu-tests PRIVATE
+	"$<$<CONFIG:Release>:/DEBUG>"
 )
 
 get_directory_property(CMKR_VS_STARTUP_PROJECT DIRECTORY ${PROJECT_SOURCE_DIR} DEFINITION VS_STARTUP_PROJECT)

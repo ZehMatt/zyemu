@@ -18,6 +18,13 @@ namespace zyemu::x86
     {
         ZydisRegister value{ ZYDIS_REGISTER_NONE };
 
+        constexpr Reg() noexcept = default;
+
+        constexpr Reg(ZydisRegister reg) noexcept
+            : value{ reg }
+        {
+        }
+
         constexpr bool isGp() const
         {
             return value >= ZYDIS_REGISTER_AL && value <= ZYDIS_REGISTER_R15;
@@ -26,6 +33,12 @@ namespace zyemu::x86
         constexpr bool isGp8() const
         {
             return value >= ZYDIS_REGISTER_AL && value <= ZYDIS_REGISTER_R15B;
+        }
+
+        constexpr bool isGp8Hi() const
+        {
+            return value == ZYDIS_REGISTER_AH || value == ZYDIS_REGISTER_CH || value == ZYDIS_REGISTER_DH
+                || value == ZYDIS_REGISTER_BH;
         }
 
         constexpr bool isGp16() const
@@ -44,6 +57,16 @@ namespace zyemu::x86
         }
 
         constexpr auto operator<=>(const Reg&) const = default;
+
+        operator ZydisRegister() const noexcept
+        {
+            return value;
+        }
+
+        constexpr bool isValid() const
+        {
+            return value != ZYDIS_REGISTER_NONE;
+        }
     };
 
     struct Gp : public Reg
@@ -138,6 +161,48 @@ namespace zyemu::x86
     static constexpr Seg fs{ ZYDIS_REGISTER_FS };
     static constexpr Seg gs{ ZYDIS_REGISTER_GS };
 
+    // Gp8-Low
+    static constexpr Gp8 al{ ZYDIS_REGISTER_AL };
+    static constexpr Gp8 cl{ ZYDIS_REGISTER_CL };
+    static constexpr Gp8 dl{ ZYDIS_REGISTER_DL };
+    static constexpr Gp8 bl{ ZYDIS_REGISTER_BL };
+    static constexpr Gp8 spl{ ZYDIS_REGISTER_SPL };
+    static constexpr Gp8 bpl{ ZYDIS_REGISTER_BPL };
+    static constexpr Gp8 sil{ ZYDIS_REGISTER_SIL };
+    static constexpr Gp8 dil{ ZYDIS_REGISTER_DIL };
+    static constexpr Gp8 r8b{ ZYDIS_REGISTER_R8B };
+    static constexpr Gp8 r9b{ ZYDIS_REGISTER_R9B };
+    static constexpr Gp8 r10b{ ZYDIS_REGISTER_R10B };
+    static constexpr Gp8 r11b{ ZYDIS_REGISTER_R11B };
+    static constexpr Gp8 r12b{ ZYDIS_REGISTER_R12B };
+    static constexpr Gp8 r13b{ ZYDIS_REGISTER_R13B };
+    static constexpr Gp8 r14b{ ZYDIS_REGISTER_R14B };
+    static constexpr Gp8 r15b{ ZYDIS_REGISTER_R15B };
+
+    // Gp8-High
+    static constexpr Gp8 ah{ ZYDIS_REGISTER_AH };
+    static constexpr Gp8 ch{ ZYDIS_REGISTER_CH };
+    static constexpr Gp8 dh{ ZYDIS_REGISTER_DH };
+    static constexpr Gp8 bh{ ZYDIS_REGISTER_BH };
+
+    // Gp16
+    static constexpr Gp16 ax{ ZYDIS_REGISTER_AX };
+    static constexpr Gp16 cx{ ZYDIS_REGISTER_CX };
+    static constexpr Gp16 dx{ ZYDIS_REGISTER_DX };
+    static constexpr Gp16 bx{ ZYDIS_REGISTER_BX };
+    static constexpr Gp16 sp{ ZYDIS_REGISTER_SP };
+    static constexpr Gp16 bp{ ZYDIS_REGISTER_BP };
+    static constexpr Gp16 si{ ZYDIS_REGISTER_SI };
+    static constexpr Gp16 di{ ZYDIS_REGISTER_DI };
+    static constexpr Gp16 r8w{ ZYDIS_REGISTER_R8W };
+    static constexpr Gp16 r9w{ ZYDIS_REGISTER_R9W };
+    static constexpr Gp16 r10w{ ZYDIS_REGISTER_R10W };
+    static constexpr Gp16 r11w{ ZYDIS_REGISTER_R11W };
+    static constexpr Gp16 r12w{ ZYDIS_REGISTER_R12W };
+    static constexpr Gp16 r13w{ ZYDIS_REGISTER_R13W };
+    static constexpr Gp16 r14w{ ZYDIS_REGISTER_R14W };
+    static constexpr Gp16 r15w{ ZYDIS_REGISTER_R15W };
+
     // Gp32
     static constexpr Gp32 eax{ ZYDIS_REGISTER_EAX };
     static constexpr Gp32 ecx{ ZYDIS_REGISTER_ECX };
@@ -147,6 +212,14 @@ namespace zyemu::x86
     static constexpr Gp32 ebp{ ZYDIS_REGISTER_EBP };
     static constexpr Gp32 esi{ ZYDIS_REGISTER_ESI };
     static constexpr Gp32 edi{ ZYDIS_REGISTER_EDI };
+    static constexpr Gp32 r8d{ ZYDIS_REGISTER_R8D };
+    static constexpr Gp32 r9d{ ZYDIS_REGISTER_R9D };
+    static constexpr Gp32 r10d{ ZYDIS_REGISTER_R10D };
+    static constexpr Gp32 r11d{ ZYDIS_REGISTER_R11D };
+    static constexpr Gp32 r12d{ ZYDIS_REGISTER_R12D };
+    static constexpr Gp32 r13d{ ZYDIS_REGISTER_R13D };
+    static constexpr Gp32 r14d{ ZYDIS_REGISTER_R14D };
+    static constexpr Gp32 r15d{ ZYDIS_REGISTER_R15D };
 
     // Gp64
     static constexpr Gp64 rax{ ZYDIS_REGISTER_RAX };
@@ -219,8 +292,10 @@ namespace zyemu::x86
 
     class Assembler
     {
+    public:
         using Node = std::variant<Instruction, Label>;
 
+    private:
         sfl::small_vector<Node, 64> _nodes;
         std::int32_t labelId{};
 
@@ -323,6 +398,26 @@ namespace zyemu::x86
             return emit(ZYDIS_MNEMONIC_JNZ, label);
         }
 
+        Assembler& jae(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JNB, label);
+        }
+
+        Assembler& cmp(const Reg& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_CMP, dst, src);
+        }
+
+        Assembler& movzx(const Reg& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVZX, dst, src);
+        }
+
+        Assembler& movzx(const Reg& dst, const Mem& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVZX, dst, src);
+        }
+
         Assembler& call(Imm imm)
         {
             return emit(ZYDIS_MNEMONIC_CALL, imm);
@@ -341,6 +436,11 @@ namespace zyemu::x86
         Assembler& ret(Imm imm)
         {
             return emit(ZYDIS_MNEMONIC_RET, imm);
+        }
+
+        Assembler& jmp(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JMP, label);
         }
 
         template<typename Op0> Assembler& push(const Op0& src)
@@ -363,8 +463,79 @@ namespace zyemu::x86
             return emit(ZYDIS_MNEMONIC_POPFQ);
         }
 
-        Result<std::size_t> finalize(
-            ZydisMachineMode mode, std::uint64_t baseAddress, std::uint8_t* buffer, std::size_t bufSize);
+        Result<std::size_t> finalize(ZydisMachineMode mode, std::uint64_t baseAddress, std::byte* buffer, std::size_t bufSize);
     };
+
+    inline Reg changeRegSize(Reg reg, std::int32_t newBitWidth, bool isHigh = false)
+    {
+        if (reg == Reg{})
+        {
+            return { ZYDIS_REGISTER_NONE };
+        }
+
+        if (isHigh)
+        {
+            assert(newBitWidth == 8);
+        }
+
+        const ZydisRegisterClass regClass = ZydisRegisterGetClass(reg);
+        std::int32_t regId = ZydisRegisterGetId(reg);
+
+        switch (regClass)
+        {
+            case ZYDIS_REGCLASS_GPR8:
+            case ZYDIS_REGCLASS_GPR16:
+            case ZYDIS_REGCLASS_GPR32:
+            case ZYDIS_REGCLASS_GPR64:
+            {
+                switch (newBitWidth)
+                {
+                    case 8:
+                        if (isHigh)
+                        {
+                            if (regId > 3)
+                            {
+                                assert(false);
+                            }
+                            return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR8, regId + 4);
+                        }
+                        else
+                        {
+                            if (regId >= 4)
+                            {
+                                // Because hi gp8 are in the list starting at 4 we need to skip them.
+                                regId = regId + 4;
+                            }
+                            return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR8, regId);
+                        }
+                    case 16:
+                        return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR16, regId);
+                    case 32:
+                        return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR32, regId);
+                    case 64:
+                        return ZydisRegisterEncode(ZYDIS_REGCLASS_GPR64, regId);
+                }
+                break;
+            }
+            case ZYDIS_REGCLASS_XMM:
+            case ZYDIS_REGCLASS_YMM:
+            case ZYDIS_REGCLASS_ZMM:
+            {
+                switch (newBitWidth)
+                {
+                    case 128:
+                        return ZydisRegisterEncode(ZYDIS_REGCLASS_XMM, regId);
+                    case 256:
+                        return ZydisRegisterEncode(ZYDIS_REGCLASS_YMM, regId);
+                    case 512:
+                        return ZydisRegisterEncode(ZYDIS_REGCLASS_ZMM, regId);
+                }
+                break;
+            }
+        }
+
+        assert(false);
+        return { ZYDIS_REGISTER_NONE };
+    }
 
 } // namespace zyemu::x86

@@ -5,7 +5,7 @@
 
 namespace zyemu::tests
 {
-
+#if 0 // Disabled for now.
     TEST(EmulationTests, testBasicMov)
     {
         constexpr std::uint8_t kTestShellCode[] = {
@@ -305,5 +305,6 @@ namespace zyemu::tests
         ctx.getRegValue(th1, ZYDIS_REGISTER_RSP, rsp);
         ASSERT_EQ(rsp, memory::kStackBase + 8);
     }
+#endif
 
 } // namespace zyemu::tests

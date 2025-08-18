@@ -34,18 +34,18 @@ namespace zyemu
 
         void destroyThread(ThreadId tid);
 
-        StatusCode setRegData(ThreadId tid, ZydisRegister reg, std::span<const std::uint8_t> data);
+        StatusCode setRegData(ThreadId tid, ZydisRegister reg, std::span<const std::byte> data);
 
         template<typename T> StatusCode setRegValue(ThreadId tid, ZydisRegister reg, T value)
         {
-            return setRegData(tid, reg, { reinterpret_cast<const std::uint8_t*>(&value), sizeof(T) });
+            return setRegData(tid, reg, { reinterpret_cast<const std::byte*>(&value), sizeof(T) });
         }
 
-        StatusCode getRegData(ThreadId tid, ZydisRegister reg, std::span<std::uint8_t> buffer);
+        StatusCode getRegData(ThreadId tid, ZydisRegister reg, std::span<std::byte> buffer);
 
         template<typename T> StatusCode getRegValue(ThreadId tid, ZydisRegister reg, T& value)
         {
-            return getRegData(tid, reg, { reinterpret_cast<std::uint8_t*>(&value), sizeof(T) });
+            return getRegData(tid, reg, { reinterpret_cast<std::byte*>(&value), sizeof(T) });
         }
 
         StatusCode step(ThreadId tid);

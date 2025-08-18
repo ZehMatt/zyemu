@@ -38,6 +38,11 @@ namespace zyemu
         labelAlreadyBound,
         bufferTooSmall,
         outOfMemory,
+        // Code generation errors.
+        noFreeRegisters,
+        // Execution errors.
+        exceptionIntDivideError,
+        exceptionIntOverflow,
     };
 
     inline std::ostream& operator<<(std::ostream& os, const StatusCode& status)
@@ -130,6 +135,12 @@ namespace zyemu
                 break;
             case StatusCode::outOfMemory:
                 os << "StatusCode::outOfMemory";
+                break;
+            case StatusCode::exceptionIntDivideError:
+                os << "StatusCode::exceptionIntDivideError";
+                break;
+            case StatusCode::exceptionIntOverflow:
+                os << "StatusCode::exceptionIntOverflow";
                 break;
             default:
                 assert(false);

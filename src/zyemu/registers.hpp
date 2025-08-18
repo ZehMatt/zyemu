@@ -34,11 +34,25 @@ namespace zyemu
 
     } // namespace detail
 
-    inline RegInfo getContextRegInfo(detail::CPUState* state, ZydisRegister reg)
+    inline RegInfo getContextStatusReg([[maybe_unused]] ZydisMachineMode mode)
     {
-        const std::uint16_t regSize = ZydisRegisterGetWidth(state->mode, reg);
-        const ZydisRegister largeReg = ZydisRegisterGetLargestEnclosing(state->mode, reg);
-        const std::uint16_t largeBitSize = ZydisRegisterGetWidth(state->mode, largeReg);
+        constexpr std::uint16_t byteSize = static_cast<std::uint16_t>(sizeof(StatusCode));
+        constexpr std::uint16_t regOffset = offsetof(detail::ThreadContext, status);
+        constexpr std::uint16_t regSize = byteSize * 8U; // Convert to bits.
+
+        return RegInfo{
+            .offset = regOffset,
+            .bitSize = regSize,
+            .base = regOffset,
+            .largeBitSize = regSize,
+        };
+    }
+
+    inline RegInfo getContextRegInfo(ZydisMachineMode mode, ZydisRegister reg)
+    {
+        const std::uint16_t regSize = ZydisRegisterGetWidth(mode, reg);
+        const ZydisRegister largeReg = ZydisRegisterGetLargestEnclosing(mode, reg);
+        const std::uint16_t largeBitSize = ZydisRegisterGetWidth(mode, largeReg);
         const std::uint16_t largeByteSize = largeBitSize / 8U;
 
         const auto getLocalOffset = [](ZydisRegister reg) {
@@ -142,56 +156,6 @@ namespace zyemu
 
         assert(false);
         return {};
-    }
-
-    inline ZydisRegister changeRegSize(ZydisRegister reg, std::int32_t newBitWidth)
-    {
-        const ZydisRegisterClass regClass = ZydisRegisterGetClass(reg);
-        std::int32_t regId = ZydisRegisterGetId(reg);
-
-        switch (regClass)
-        {
-            case ZydisRegisterClass::ZYDIS_REGCLASS_GPR8:
-            case ZydisRegisterClass::ZYDIS_REGCLASS_GPR16:
-            case ZydisRegisterClass::ZYDIS_REGCLASS_GPR32:
-            case ZydisRegisterClass::ZYDIS_REGCLASS_GPR64:
-            {
-                switch (newBitWidth)
-                {
-                    case 8:
-                        if (regId >= 4)
-                        {
-                            // Because hi gp8 are in the list starting at 4 we need to skip them.
-                            regId = regId + 4;
-                        }
-                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_GPR8, regId);
-                    case 16:
-                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_GPR16, regId);
-                    case 32:
-                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_GPR32, regId);
-                    case 64:
-                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_GPR64, regId);
-                }
-                break;
-            }
-            case ZydisRegisterClass::ZYDIS_REGCLASS_XMM:
-            case ZydisRegisterClass::ZYDIS_REGCLASS_YMM:
-            case ZydisRegisterClass::ZYDIS_REGCLASS_ZMM:
-            {
-                switch (newBitWidth)
-                {
-                    case 128:
-                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_XMM, regId);
-                    case 256:
-                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_YMM, regId);
-                    case 512:
-                        return ZydisRegisterEncode(ZydisRegisterClass::ZYDIS_REGCLASS_ZMM, regId);
-                }
-                break;
-            }
-        }
-        assert(false);
-        return ZYDIS_REGISTER_NONE;
     }
 
 } // namespace zyemu

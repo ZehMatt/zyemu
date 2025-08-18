@@ -19,12 +19,12 @@ include(FetchContent)
 if(POLICY CMP0135)
 	cmake_policy(SET CMP0135 NEW)
 endif()
-message(STATUS "Fetching Zydis (v4.1.0)...")
+message(STATUS "Fetching Zydis (f2ad85f92fc6645a642053882eaf0e95693977e9)...")
 FetchContent_Declare(Zydis SYSTEM
 	GIT_REPOSITORY
 		"https://github.com/zyantific/zydis"
 	GIT_TAG
-		v4.1.0
+		f2ad85f92fc6645a642053882eaf0e95693977e9
 )
 FetchContent_MakeAvailable(Zydis)
 
@@ -46,11 +46,11 @@ FetchContent_Declare(GBenchmark SYSTEM
 )
 FetchContent_MakeAvailable(GBenchmark)
 
-message(STATUS "Fetching sfl (1.9.0)...")
+message(STATUS "Fetching sfl (1.10.1)...")
 FetchContent_Declare(sfl
 	GIT_REPOSITORY
 		"https://github.com/slavenf/sfl-library.git"
 	GIT_TAG
-		1.9.0
+		1.10.1
 )
 FetchContent_MakeAvailable(sfl)

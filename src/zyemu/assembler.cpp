@@ -1,6 +1,9 @@
 #include "assembler.hpp"
 
 #include <Zydis/Encoder.h>
+#include <cassert>
+#include <format>
+#include <iostream>
 #include <map>
 
 namespace zyemu::x86
@@ -144,8 +147,112 @@ namespace zyemu::x86
         return EncodeInfo{ static_cast<std::uint32_t>(bufSize), needsPass };
     }
 
+    static std::string getNodeString(const Label& label)
+    {
+        return std::format("L_{0}", static_cast<size_t>(label.id));
+    }
+
+    static std::string getNodeString(const Instruction& instr)
+    {
+        std::string_view mnemonicName = ZydisMnemonicGetString(instr.mnemonic);
+
+        std::string prefixesStr;
+        // TODO: Prefix handling.
+        /*
+        if (instr.data.prefixes & ZYDIS_INSTRUCTION_PREFIX_LOCK)
+        {
+            prefixesStr += "lock ";
+        }
+        */
+
+        std::string operandsStr;
+        for (const auto& op : instr.operands)
+        {
+            if (!operandsStr.empty())
+            {
+                std::format_to(std::back_inserter(operandsStr), ", ");
+            }
+            if (const auto* reg = std::get_if<Reg>(&op); reg != nullptr)
+            {
+                std::format_to(std::back_inserter(operandsStr), "{}", ZydisRegisterGetString(reg->value));
+            }
+            else if (const auto* mem = std::get_if<Mem>(&op); mem != nullptr)
+            {
+                constexpr auto sizePrefixes = std::array{ "byte ptr", "word ptr", "dword ptr", "qword ptr", "tword ptr" };
+                const auto sizeIndex = mem->bitSize / 8 - 1;
+                if (sizeIndex < std::size(sizePrefixes))
+                {
+                    std::format_to(std::back_inserter(operandsStr), "{} ", sizePrefixes[sizeIndex]);
+                }
+
+                if (mem->seg.value != ZYDIS_REGISTER_NONE)
+                {
+                    std::format_to(std::back_inserter(operandsStr), "{}:", ZydisRegisterGetString(mem->seg.value));
+                }
+
+                std::format_to(std::back_inserter(operandsStr), "[");
+
+                bool hasBase = false;
+                if (mem->base.value != ZYDIS_REGISTER_NONE)
+                {
+                    std::format_to(std::back_inserter(operandsStr), "{}", ZydisRegisterGetString(mem->base.value));
+                    hasBase = true;
+                }
+
+                bool hasIndex = false;
+                if (mem->index.value != ZYDIS_REGISTER_NONE)
+                {
+                    if (hasBase)
+                    {
+                        std::format_to(std::back_inserter(operandsStr), "+");
+                    }
+                    operandsStr += ZydisRegisterGetString(mem->index.value);
+
+                    if (mem->scale >= 1)
+                    {
+                        std::format_to(std::back_inserter(operandsStr), "*{}", mem->scale);
+                    }
+                    hasIndex = true;
+                }
+
+                if (mem->disp != 0)
+                {
+                    if (hasBase || hasIndex)
+                    {
+                        std::format_to(std::back_inserter(operandsStr), "{}", mem->disp < 0 ? "-" : "+");
+                    }
+                    std::format_to(std::back_inserter(operandsStr), "{0:X}", std::abs(mem->disp));
+                }
+
+                std::format_to(std::back_inserter(operandsStr), "]");
+            }
+            else if (const auto* imm = std::get_if<Imm>(&op); imm != nullptr)
+            {
+                std::format_to(std::back_inserter(operandsStr), "{0:X}", imm->value);
+            }
+            else if (const auto* label = std::get_if<Label>(&op); label != nullptr)
+            {
+                std::format_to(std::back_inserter(operandsStr), "L_{0}", static_cast<size_t>(label->id));
+            }
+        }
+
+        std::string result;
+        std::format_to(std::back_inserter(result), "{}", prefixesStr);
+        std::format_to(std::back_inserter(result), "{}", mnemonicName);
+        if (!operandsStr.empty())
+        {
+            std::format_to(std::back_inserter(result), " {}", operandsStr);
+        }
+        return result;
+    }
+
+    static std::string getNodeString(const Assembler::Node& node)
+    {
+        return std::visit([](const auto& data) { return getNodeString(data); }, node);
+    }
+
     Result<std::size_t> Assembler::finalize(
-        ZydisMachineMode mode, std::uint64_t baseAddress, std::uint8_t* buffer, std::size_t bufSize)
+        ZydisMachineMode mode, std::uint64_t baseAddress, std::byte* buffer, std::size_t bufSize)
     {
         EncodeState state{};
         state.mode = mode;
@@ -167,6 +274,7 @@ namespace zyemu::x86
                 auto encodeInfo = std::visit([&](const auto& data) { return handleNode(state, data); }, node);
                 if (!encodeInfo)
                 {
+                    std::println(std::cerr, "Failed to encode: {}", getNodeString(node));
                     return encodeInfo.getError();
                 }
 
