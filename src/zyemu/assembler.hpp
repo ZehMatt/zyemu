@@ -25,7 +25,7 @@ namespace zyemu::x86
         {
         }
 
-        constexpr bool isGp() const
+        constexpr bool isGpFamily() const
         {
             return value >= ZYDIS_REGISTER_AL && value <= ZYDIS_REGISTER_R15;
         }
@@ -54,6 +54,49 @@ namespace zyemu::x86
         constexpr bool isGp64() const
         {
             return value >= ZYDIS_REGISTER_RAX && value <= ZYDIS_REGISTER_R15;
+        }
+
+        constexpr bool isSegFamily() const
+        {
+            return isSeg();
+        }
+
+        constexpr bool isSeg() const
+        {
+            return value == ZYDIS_REGISTER_ES || value == ZYDIS_REGISTER_CS || value == ZYDIS_REGISTER_SS
+                || value == ZYDIS_REGISTER_DS || value == ZYDIS_REGISTER_FS || value == ZYDIS_REGISTER_GS;
+        }
+
+        constexpr bool isFlags() const
+        {
+            return value == ZYDIS_REGISTER_FLAGS || value == ZYDIS_REGISTER_EFLAGS || value == ZYDIS_REGISTER_RFLAGS;
+        }
+
+        constexpr bool isIP() const
+        {
+            return value == ZYDIS_REGISTER_RIP || value == ZYDIS_REGISTER_EIP;
+        }
+
+        constexpr bool isSimdFamily() const
+        {
+            return value >= ZYDIS_REGISTER_XMM0 && value <= ZYDIS_REGISTER_XMM31
+                || value >= ZYDIS_REGISTER_YMM0 && value <= ZYDIS_REGISTER_YMM31
+                || value >= ZYDIS_REGISTER_ZMM0 && value <= ZYDIS_REGISTER_ZMM31;
+        }
+
+        constexpr bool isXmm() const
+        {
+            return value >= ZYDIS_REGISTER_XMM0 && value <= ZYDIS_REGISTER_XMM31;
+        }
+
+        constexpr bool isYmm() const
+        {
+            return value >= ZYDIS_REGISTER_YMM0 && value <= ZYDIS_REGISTER_YMM31;
+        }
+
+        constexpr bool isZmm() const
+        {
+            return value >= ZYDIS_REGISTER_ZMM0 && value <= ZYDIS_REGISTER_ZMM31;
         }
 
         constexpr auto operator<=>(const Reg&) const = default;
@@ -273,6 +316,74 @@ namespace zyemu::x86
     static constexpr Reg xmm29{ ZYDIS_REGISTER_XMM29 };
     static constexpr Reg xmm30{ ZYDIS_REGISTER_XMM30 };
     static constexpr Reg xmm31{ ZYDIS_REGISTER_XMM31 };
+
+    // Ymm regs.
+    static constexpr Reg ymm0{ ZYDIS_REGISTER_YMM0 };
+    static constexpr Reg ymm1{ ZYDIS_REGISTER_YMM1 };
+    static constexpr Reg ymm2{ ZYDIS_REGISTER_YMM2 };
+    static constexpr Reg ymm3{ ZYDIS_REGISTER_YMM3 };
+    static constexpr Reg ymm4{ ZYDIS_REGISTER_YMM4 };
+    static constexpr Reg ymm5{ ZYDIS_REGISTER_YMM5 };
+    static constexpr Reg ymm6{ ZYDIS_REGISTER_YMM6 };
+    static constexpr Reg ymm7{ ZYDIS_REGISTER_YMM7 };
+    static constexpr Reg ymm8{ ZYDIS_REGISTER_YMM8 };
+    static constexpr Reg ymm9{ ZYDIS_REGISTER_YMM9 };
+    static constexpr Reg ymm10{ ZYDIS_REGISTER_YMM10 };
+    static constexpr Reg ymm11{ ZYDIS_REGISTER_YMM11 };
+    static constexpr Reg ymm12{ ZYDIS_REGISTER_YMM12 };
+    static constexpr Reg ymm13{ ZYDIS_REGISTER_YMM13 };
+    static constexpr Reg ymm14{ ZYDIS_REGISTER_YMM14 };
+    static constexpr Reg ymm15{ ZYDIS_REGISTER_YMM15 };
+    static constexpr Reg ymm16{ ZYDIS_REGISTER_YMM16 };
+    static constexpr Reg ymm17{ ZYDIS_REGISTER_YMM17 };
+    static constexpr Reg ymm18{ ZYDIS_REGISTER_YMM18 };
+    static constexpr Reg ymm19{ ZYDIS_REGISTER_YMM19 };
+    static constexpr Reg ymm20{ ZYDIS_REGISTER_YMM20 };
+    static constexpr Reg ymm21{ ZYDIS_REGISTER_YMM21 };
+    static constexpr Reg ymm22{ ZYDIS_REGISTER_YMM22 };
+    static constexpr Reg ymm23{ ZYDIS_REGISTER_YMM23 };
+    static constexpr Reg ymm24{ ZYDIS_REGISTER_YMM24 };
+    static constexpr Reg ymm25{ ZYDIS_REGISTER_YMM25 };
+    static constexpr Reg ymm26{ ZYDIS_REGISTER_YMM26 };
+    static constexpr Reg ymm27{ ZYDIS_REGISTER_YMM27 };
+    static constexpr Reg ymm28{ ZYDIS_REGISTER_YMM28 };
+    static constexpr Reg ymm29{ ZYDIS_REGISTER_YMM29 };
+    static constexpr Reg ymm30{ ZYDIS_REGISTER_YMM30 };
+    static constexpr Reg ymm31{ ZYDIS_REGISTER_YMM31 };
+
+    // Ymm regs.
+    static constexpr Reg zmm0{ ZYDIS_REGISTER_ZMM0 };
+    static constexpr Reg zmm1{ ZYDIS_REGISTER_ZMM1 };
+    static constexpr Reg zmm2{ ZYDIS_REGISTER_ZMM2 };
+    static constexpr Reg zmm3{ ZYDIS_REGISTER_ZMM3 };
+    static constexpr Reg zmm4{ ZYDIS_REGISTER_ZMM4 };
+    static constexpr Reg zmm5{ ZYDIS_REGISTER_ZMM5 };
+    static constexpr Reg zmm6{ ZYDIS_REGISTER_ZMM6 };
+    static constexpr Reg zmm7{ ZYDIS_REGISTER_ZMM7 };
+    static constexpr Reg zmm8{ ZYDIS_REGISTER_ZMM8 };
+    static constexpr Reg zmm9{ ZYDIS_REGISTER_ZMM9 };
+    static constexpr Reg zmm10{ ZYDIS_REGISTER_ZMM10 };
+    static constexpr Reg zmm11{ ZYDIS_REGISTER_ZMM11 };
+    static constexpr Reg zmm12{ ZYDIS_REGISTER_ZMM12 };
+    static constexpr Reg zmm13{ ZYDIS_REGISTER_ZMM13 };
+    static constexpr Reg zmm14{ ZYDIS_REGISTER_ZMM14 };
+    static constexpr Reg zmm15{ ZYDIS_REGISTER_ZMM15 };
+    static constexpr Reg zmm16{ ZYDIS_REGISTER_ZMM16 };
+    static constexpr Reg zmm17{ ZYDIS_REGISTER_ZMM17 };
+    static constexpr Reg zmm18{ ZYDIS_REGISTER_ZMM18 };
+    static constexpr Reg zmm19{ ZYDIS_REGISTER_ZMM19 };
+    static constexpr Reg zmm20{ ZYDIS_REGISTER_ZMM20 };
+    static constexpr Reg zmm21{ ZYDIS_REGISTER_ZMM21 };
+    static constexpr Reg zmm22{ ZYDIS_REGISTER_ZMM22 };
+    static constexpr Reg zmm23{ ZYDIS_REGISTER_ZMM23 };
+    static constexpr Reg zmm24{ ZYDIS_REGISTER_ZMM24 };
+    static constexpr Reg zmm25{ ZYDIS_REGISTER_ZMM25 };
+    static constexpr Reg zmm26{ ZYDIS_REGISTER_ZMM26 };
+    static constexpr Reg zmm27{ ZYDIS_REGISTER_ZMM27 };
+    static constexpr Reg zmm28{ ZYDIS_REGISTER_ZMM28 };
+    static constexpr Reg zmm29{ ZYDIS_REGISTER_ZMM29 };
+    static constexpr Reg zmm30{ ZYDIS_REGISTER_ZMM30 };
+    static constexpr Reg zmm31{ ZYDIS_REGISTER_ZMM31 };
 
     // Memory helpers.
     inline Mem qword_ptr(const Reg& base, std::int64_t disp = 0)

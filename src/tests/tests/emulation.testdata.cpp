@@ -20,27 +20,23 @@ namespace zyemu::tests
             return 0;
         }
 
+#ifdef _MSC_VER
+        // Never null.
+        __assume(instruction.cpu_flags != nullptr);
+#endif
         return instruction.cpu_flags->undefined;
     }
 
-    static void runInstrChecks(const InstrEntry& entry)
+    static void runInstrChecks(zyemu::CPU& ctx, zyemu::ThreadId th1, const InstrEntry& entry)
     {
         // Write instruction.
         const auto instrBytes = entry.instrBytes.data();
         memory::writeHandler(ThreadId::invalid, entry.rip, instrBytes.data(), instrBytes.size(), nullptr);
 
-        zyemu::CPU ctx{};
-        ctx.setMode(ZydisMachineMode::ZYDIS_MACHINE_MODE_LONG_64);
-        ctx.setMemReadHandler(memory::readHandler, nullptr);
-        ctx.setMemWriteHandler(memory::writeHandler, nullptr);
-
-        auto th1 = ctx.createThread();
-
         for (const auto& testEntry : entry.testEntries)
         {
             if (testEntry.exceptionType != ExceptionType::kNone)
             {
-                // SKip for now.
                 printf("");
             }
 
@@ -116,21 +112,41 @@ namespace zyemu::tests
 
     class EmulationParameterizedTest : public testing::TestWithParam<TestParam>
     {
+    protected:
+        inline static zyemu::CPU ctx{}; // shared across all parameterized tests
+        inline static bool initialized = false;
+
+        zyemu::ThreadId th1{};
+
+        void SetUp() override
+        {
+            if (!initialized)
+            {
+                ctx.setMode(ZydisMachineMode::ZYDIS_MACHINE_MODE_LONG_64);
+                ctx.setMemReadHandler(memory::readHandler, nullptr);
+                ctx.setMemWriteHandler(memory::writeHandler, nullptr);
+                initialized = true;
+            }
+            th1 = ctx.createThread();
+        }
+
+        void TearDown() override
+        {
+            ctx.destroyThread(th1); // cleanup thread after each test
+        }
     };
 
     TEST_P(EmulationParameterizedTest, RunInstrTests)
     {
         const auto& param = GetParam();
         auto entryOpt = parseSingleInstrEntry(param.filePath, param.startOffset, param.rip);
-        if (!entryOpt.has_value())
-            __debugbreak();
         ASSERT_TRUE(entryOpt.has_value()) << "Failed to parse entry from " << param.filePath << " at offset "
                                           << param.startOffset;
 
         const auto& entry = entryOpt.value();
         SCOPED_TRACE("Instruction: " + entry.instrText + " (RIP: 0x" + std::format("{0:X}", entry.rip) + ")");
 
-        runInstrChecks(entry);
+        runInstrChecks(ctx, th1, entry);
     }
 
     struct PrintToStringParamName
@@ -164,6 +180,9 @@ namespace zyemu::tests
         //"testdata/cmpsb.txt",
         //"testdata/shld.txt", // fails
         //"testdata/lar.txt", // fails
+        // SIMD
+        //"testdata/addpd.txt",
+        // General Purpose.
         "testdata/xadd.txt",
         "testdata/std.txt",
         "testdata/shlx.txt",

@@ -49,6 +49,8 @@ set(zyemu_SOURCES
 	"src/zyemu/codegen.hpp"
 	"src/zyemu/cpu.cpp"
 	"src/zyemu/internal.hpp"
+	"src/zyemu/platform.cpp"
+	"src/zyemu/platform.hpp"
 	"src/zyemu/registers.cpp"
 	"src/zyemu/registers.hpp"
 )
@@ -62,6 +64,13 @@ add_library(zyemu::zyemu ALIAS zyemu)
 target_compile_features(zyemu PUBLIC
 	cxx_std_23
 )
+
+if(MSVC) # msvc
+	target_compile_options(zyemu PRIVATE
+		"/MP"
+		"$<$<CONFIG:Release>:/Oi>"
+	)
+endif()
 
 target_include_directories(zyemu PUBLIC
 	include
@@ -124,6 +133,13 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${zyemu-tests_SOURCES})
 target_compile_features(zyemu-tests PRIVATE
 	cxx_std_23
 )
+
+if(MSVC) # msvc
+	target_compile_options(zyemu-tests PRIVATE
+		"/MP"
+		"$<$<CONFIG:Release>:/Oi>"
+	)
+endif()
 
 target_include_directories(zyemu-tests PRIVATE
 	"src/tests"

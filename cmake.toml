@@ -11,24 +11,27 @@ name = "zyemu"
 type = "static"
 alias = "zyemu::zyemu"
 sources = [
-    "src/zyemu/cpu.cpp",
+    "src/zyemu/assembler.cpp",
     "src/zyemu/codecache.cpp",
     "src/zyemu/codegen.cpp",
-    "src/zyemu/assembler.cpp",
+    "src/zyemu/cpu.cpp",
+    "src/zyemu/platform.cpp",
     "src/zyemu/registers.cpp",
 ]
 headers = [
+    "include/zyemu/types.hpp",
+    "include/zyemu/zyemu.hpp",
     "src/zyemu/assembler.hpp",
     "src/zyemu/codecache.hpp",
     "src/zyemu/codegen.hpp",
     "src/zyemu/internal.hpp",
+    "src/zyemu/platform.hpp",
     "src/zyemu/registers.hpp",
-    "include/zyemu/zyemu.hpp",
-    "include/zyemu/types.hpp",
 ]
 include-directories = ["include"]
 compile-features = ["cxx_std_23"]
 link-libraries = ["Zydis", "sfl::sfl"]
+msvc.private-compile-options = ["/MP", "$<$<CONFIG:Release>:/Oi>"]
 private-link-options = ["$<$<CONFIG:Release>:/DEBUG>"]
 
 [target.zyemu-playground]
@@ -55,5 +58,6 @@ headers = [
 ]
 private-include-directories = ["src/tests", "src/zyemu"]
 compile-features = ["cxx_std_23"]
+msvc.private-compile-options = ["/MP", "$<$<CONFIG:Release>:/Oi>"]
 private-link-libraries = ["zyemu::zyemu", "GTest::gtest"]
 private-link-options = ["$<$<CONFIG:Release>:/DEBUG>"]
