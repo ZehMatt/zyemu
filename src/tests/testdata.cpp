@@ -3,6 +3,7 @@
 #include "testdata.hpp"
 
 #include <array>
+#include <charconv>
 #include <iostream>
 #include <map>
 
@@ -13,6 +14,14 @@ namespace zyemu::tests
 
     namespace detail
     {
+        static constexpr std::string_view kInstrPrefix = "instr:";
+        static constexpr std::string_view kInPrefix = "in:";
+        static constexpr std::string_view kOutPrefix = "out:";
+        static constexpr std::string_view kExceptionPrefix = "exception:";
+        static constexpr std::string_view kSegmentSeparator = "|";
+        static constexpr std::string_view kDataSeparator = ",";
+        static constexpr std::string_view kGroupSeparator = ";";
+
         inline sfl::small_vector<std::string_view, 8> split(std::string_view haystack, std::string_view delim)
         {
             sfl::small_vector<std::string_view, 8> tokens{};
@@ -26,6 +35,7 @@ namespace zyemu::tests
                 tokens.push_back(haystack);
             return tokens;
         }
+
         static inline std::optional<std::uint64_t> decodeHexValue(std::string_view str)
         {
             if (!str.starts_with("0x"))
@@ -187,7 +197,7 @@ namespace zyemu::tests
         {
             sfl::small_vector<RegData, 4> entries;
 
-            const auto pairs = detail::split(pairsStr, ",");
+            const auto pairs = detail::split(pairsStr, kDataSeparator);
             for (auto& pair : pairs)
             {
                 const auto regPair = detail::split(pair, ":");
@@ -233,11 +243,6 @@ namespace zyemu::tests
             return std::nullopt;
         }
 
-        static constexpr std::string_view kInstrPrefix = "instr:";
-        static constexpr std::string_view kInPrefix = "in:";
-        static constexpr std::string_view kOutPrefix = "out:";
-        static constexpr std::string_view kExceptionPrefix = "exception:";
-
     } // namespace detail
 
     std::optional<InstrEntry> parseSingleInstrEntry(
@@ -264,13 +269,13 @@ namespace zyemu::tests
             return std::nullopt;
         }
 
-        if (line.empty() || !line.starts_with("instr:"))
+        if (line.empty() || !line.starts_with(detail::kInstrPrefix))
         {
             return std::nullopt; // Mismatch
         }
 
         const auto lineView = std::string_view(line);
-        const auto instrSegments = detail::split(lineView.substr(6), ";");
+        const auto instrSegments = detail::split(lineView.substr(6), detail::kGroupSeparator);
         if (instrSegments.size() != 4)
         {
             return std::nullopt;
@@ -311,7 +316,7 @@ namespace zyemu::tests
 
             InstrTestData testData{};
 
-            const auto testDataSegments = detail::split(line, "|");
+            const auto testDataSegments = detail::split(line, detail::kSegmentSeparator);
             for (auto seg : testDataSegments)
             {
                 seg = detail::trim(seg);
@@ -358,9 +363,9 @@ namespace zyemu::tests
         return entry;
     }
 
-    std::vector<TestParam> collectAllTestParams(const std::vector<std::string>& filePaths)
+    TestParameters collectAllTestParams(const std::vector<std::string>& filePaths)
     {
-        std::vector<TestParam> params;
+        TestParameters params;
 
         std::ios::sync_with_stdio(false);
 
@@ -369,17 +374,26 @@ namespace zyemu::tests
         {
             if (_fileStreams.contains(filePath) == false)
             {
-                _fileStreams[filePath].open(filePath);
-                if (!_fileStreams[filePath].is_open())
+                std::ifstream inFile;
+                inFile.open(filePath);
+
+                if (!inFile.is_open())
                 {
-                    _fileStreams.erase(filePath);
+                    std::cerr << "Failed to open file: " << filePath << std::endl;
                 }
+
+                inFile.tie(nullptr); // Disable synchronization with std::cin/std::cout
+
+                _fileStreams.emplace(filePath, std::move(inFile));
             }
         }
 
-        for (const auto& filePath : filePaths)
+        for (auto& [filePath, fs] : _fileStreams)
         {
-            std::ifstream& fs = _fileStreams[filePath];
+            if (!fs.is_open())
+            {
+                continue;
+            }
 
             std::string line;
             line.reserve(512);
@@ -392,13 +406,13 @@ namespace zyemu::tests
                     break;
                 }
 
-                if (line.empty() || !line.starts_with("instr:"))
+                if (line.empty() || !line.starts_with(detail::kInstrPrefix))
                 {
                     continue;
                 }
 
                 const auto lineView = std::string_view(line);
-                const auto instrSegments = detail::split(lineView.substr(6), ";"); // Skip "instr:"
+                const auto instrSegments = detail::split(lineView.substr(6), detail::kGroupSeparator); // Skip "instr:"
                 if (instrSegments.size() != 4)
                 {
                     continue;
@@ -424,12 +438,10 @@ namespace zyemu::tests
                 params.push_back({ filePath, instrText, ripOpt.value(), pos });
 
                 // Skip the test lines without parsing
+                const auto newLine = fs.widen('\n');
                 for (std::uint32_t i = 0; i < testEntryCountOpt.value(); ++i)
                 {
-                    if (!std::getline(fs, line))
-                    {
-                        break;
-                    }
+                    fs.ignore(std::numeric_limits<std::streamsize>::max(), newLine);
                 }
             }
 

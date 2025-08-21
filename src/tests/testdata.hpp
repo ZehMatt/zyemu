@@ -4,6 +4,7 @@
 #include <fstream>
 #include <functional>
 #include <optional>
+#include <sfl/segmented_vector.hpp>
 #include <sfl/small_vector.hpp>
 #include <sfl/static_vector.hpp>
 #include <string>
@@ -19,11 +20,7 @@ namespace zyemu::tests
         kIntOverflow,
     };
 
-#ifdef _DEBUG
-    using RawData = std::vector<std::byte>;
-#else
     using RawData = sfl::small_vector<std::byte, 8>;
-#endif
 
     struct InstrBytes
     {
@@ -62,7 +59,7 @@ namespace zyemu::tests
         std::uint64_t rip;
         std::string instrText;
         InstrBytes instrBytes;
-        sfl::small_vector<InstrTestData, 32> testEntries;
+        sfl::small_vector<InstrTestData, 128> testEntries;
     };
 
     using InstrEntries = std::vector<InstrEntry>;
@@ -78,7 +75,9 @@ namespace zyemu::tests
     std::optional<InstrEntry> parseSingleInstrEntry(
         const std::string& filePath, std::streampos startOffset, std::uint64_t expectedRip);
 
-    std::vector<TestParam> collectAllTestParams(const std::vector<std::string>& filePaths);
+    using TestParameters = sfl::segmented_vector<TestParam, 256>;
+
+    TestParameters collectAllTestParams(const std::vector<std::string>& filePaths);
 
     inline std::ostream& operator<<(std::ostream& os, const InstrEntry& entry)
     {

@@ -183,10 +183,10 @@ namespace zyemu::tests
         // SIMD
         "testdata/xorps.txt",
         "testdata/xorpd.txt",
-        "testdata/unpckhss.txt",
-        "testdata/unpckhsd.txt",
-        "testdata/unpckhps.txt",
         "testdata/unpckhpd.txt",
+        "testdata/unpckhps.txt",
+        "testdata/unpcklpd.txt",
+        "testdata/unpcklps.txt",
         "testdata/ucomisd.txt",
         "testdata/ucomiss.txt",
         "testdata/subss.txt",
