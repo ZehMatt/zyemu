@@ -84,6 +84,11 @@ namespace zyemu::x86
                 || value >= ZYDIS_REGISTER_ZMM0 && value <= ZYDIS_REGISTER_ZMM31;
         }
 
+        constexpr bool isMmx() const
+        {
+            return value >= ZYDIS_REGISTER_MM0 && value <= ZYDIS_REGISTER_MM7;
+        }
+
         constexpr bool isXmm() const
         {
             return value >= ZYDIS_REGISTER_XMM0 && value <= ZYDIS_REGISTER_XMM31;
@@ -283,6 +288,16 @@ namespace zyemu::x86
     static constexpr Gp64 r15{ ZYDIS_REGISTER_R15 };
     static constexpr Gp64 rip{ ZYDIS_REGISTER_RIP };
 
+    // Mmx regs.
+    static constexpr Reg mm0{ ZYDIS_REGISTER_MM0 };
+    static constexpr Reg mm1{ ZYDIS_REGISTER_MM1 };
+    static constexpr Reg mm2{ ZYDIS_REGISTER_MM2 };
+    static constexpr Reg mm3{ ZYDIS_REGISTER_MM3 };
+    static constexpr Reg mm4{ ZYDIS_REGISTER_MM4 };
+    static constexpr Reg mm5{ ZYDIS_REGISTER_MM5 };
+    static constexpr Reg mm6{ ZYDIS_REGISTER_MM6 };
+    static constexpr Reg mm7{ ZYDIS_REGISTER_MM7 };
+
     // Xmm regs.
     static constexpr Reg xmm0{ ZYDIS_REGISTER_XMM0 };
     static constexpr Reg xmm1{ ZYDIS_REGISTER_XMM1 };
@@ -457,6 +472,66 @@ namespace zyemu::x86
         Assembler& mov(const Mem& dst, const Imm& src)
         {
             return emit(ZYDIS_MNEMONIC_MOV, dst, src);
+        }
+
+        Assembler& movd(const Reg& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVD, dst, src);
+        }
+
+        Assembler& movd(const Reg& dst, const Mem& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVD, dst, src);
+        }
+
+        Assembler& movd(const Mem& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVD, dst, src);
+        }
+
+        Assembler& movq(const Reg& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVQ, dst, src);
+        }
+
+        Assembler& movq(const Reg& dst, const Mem& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVQ, dst, src);
+        }
+
+        Assembler& movq(const Mem& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVQ, dst, src);
+        }
+
+        Assembler& movups(const Reg& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVUPS, dst, src);
+        }
+
+        Assembler& movups(const Reg& dst, const Mem& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVUPS, dst, src);
+        }
+
+        Assembler& movups(const Mem& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVUPS, dst, src);
+        }
+
+        Assembler& vmovups(const Reg& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_VMOVUPS, dst, src);
+        }
+
+        Assembler& vmovups(const Reg& dst, const Mem& src)
+        {
+            return emit(ZYDIS_MNEMONIC_VMOVUPS, dst, src);
+        }
+
+        Assembler& vmovups(const Mem& dst, const Reg& src)
+        {
+            return emit(ZYDIS_MNEMONIC_VMOVUPS, dst, src);
         }
 
         template<typename Op0, typename Op1> Assembler& sub(const Op0& dst, const Op1& src)
@@ -640,6 +715,18 @@ namespace zyemu::x86
                         return ZydisRegisterEncode(ZYDIS_REGCLASS_YMM, regId);
                     case 512:
                         return ZydisRegisterEncode(ZYDIS_REGCLASS_ZMM, regId);
+                }
+                break;
+            }
+            case ZYDIS_REGCLASS_MMX:
+            {
+                if (newBitWidth == 64)
+                {
+                    return ZydisRegisterEncode(ZYDIS_REGCLASS_MMX, regId);
+                }
+                else
+                {
+                    assert(false);
                 }
                 break;
             }

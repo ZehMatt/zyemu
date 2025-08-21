@@ -26,54 +26,61 @@ namespace zyemu::tests
                 tokens.push_back(haystack);
             return tokens;
         }
-
-        inline std::optional<std::uint64_t> decodeHexValue(std::string_view str)
+        static inline std::optional<std::uint64_t> decodeHexValue(std::string_view str)
         {
-            if (str.starts_with("0x") == false)
-            {
-                // All hex values are prefixed with 0x.
+            if (!str.starts_with("0x"))
                 return std::nullopt;
-            }
+
             str.remove_prefix(2);
-            return std::stoull(std::string(str), nullptr, 16);
+
+            std::uint64_t value{};
+            auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value, 16);
+
+            if (ec != std::errc{} || ptr != str.data() + str.size())
+                return std::nullopt;
+
+            return value;
         }
 
-        inline std::optional<RawData> decodeHexData(std::string_view str)
+        static inline std::optional<std::uint32_t> decodeNumber(std::string_view str)
         {
-            if (str.starts_with("#") == false)
-            {
-                // All binary data is prefixed with #.
-                return std::nullopt;
-            }
+            std::uint32_t value{};
+            auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), value, 10);
 
-            RawData data{};
+            if (ec != std::errc{} || ptr != str.data() + str.size())
+                return std::nullopt;
+
+            return value;
+        }
+
+        static inline std::optional<RawData> decodeHexData(std::string_view str)
+        {
+            if (!str.starts_with("#"))
+                return std::nullopt;
+
             str.remove_prefix(1);
 
+            if (str.size() % 2 != 0) // must be even length for full bytes
+                return std::nullopt;
+
+            RawData data;
             data.reserve(str.size() / 2);
-            while (str.empty() == false)
+
+            while (!str.empty())
             {
-                const auto byteStr = str.substr(0, 2);
-                str.remove_prefix(2);
-                const auto byte = std::stoul(std::string(byteStr), nullptr, 16);
+                std::uint32_t byte{};
+                auto [ptr, ec] = std::from_chars(str.data(), str.data() + 2, byte, 16);
+                if (ec != std::errc{})
+                    return std::nullopt;
+
                 data.push_back(static_cast<std::byte>(byte));
+                str.remove_prefix(2);
             }
 
             return data;
         }
 
-        inline std::optional<std::uint32_t> decodeNumber(std::string_view str)
-        {
-            try
-            {
-                return std::stoul(std::string(str), nullptr, 10);
-            }
-            catch (...)
-            {
-                return std::nullopt;
-            }
-        }
-
-        inline std::string_view trim(std::string_view str)
+        static inline std::string_view trim(std::string_view str)
         {
             while (str.starts_with(" ") || str.starts_with("\t"))
             {
@@ -88,6 +95,7 @@ namespace zyemu::tests
 
         static constexpr auto kStringToRegMap = []() {
             auto map = std::to_array<std::pair<std::string_view, ZydisRegister>>({
+                // General purpose.
                 { "rax", ZYDIS_REGISTER_RAX },
                 { "rbx", ZYDIS_REGISTER_RBX },
                 { "rcx", ZYDIS_REGISTER_RCX },
@@ -104,6 +112,33 @@ namespace zyemu::tests
                 { "r13", ZYDIS_REGISTER_R13 },
                 { "r14", ZYDIS_REGISTER_R14 },
                 { "r15", ZYDIS_REGISTER_R15 },
+                // Simd.
+                { "xmm0", ZYDIS_REGISTER_XMM0 },
+                { "xmm1", ZYDIS_REGISTER_XMM1 },
+                { "xmm2", ZYDIS_REGISTER_XMM2 },
+                { "xmm3", ZYDIS_REGISTER_XMM3 },
+                { "xmm4", ZYDIS_REGISTER_XMM4 },
+                { "xmm5", ZYDIS_REGISTER_XMM5 },
+                { "xmm6", ZYDIS_REGISTER_XMM6 },
+                { "xmm7", ZYDIS_REGISTER_XMM7 },
+                { "xmm8", ZYDIS_REGISTER_XMM8 },
+                { "xmm9", ZYDIS_REGISTER_XMM9 },
+                { "xmm10", ZYDIS_REGISTER_XMM10 },
+                { "xmm11", ZYDIS_REGISTER_XMM11 },
+                { "xmm12", ZYDIS_REGISTER_XMM12 },
+                { "xmm13", ZYDIS_REGISTER_XMM13 },
+                { "xmm14", ZYDIS_REGISTER_XMM14 },
+                { "xmm15", ZYDIS_REGISTER_XMM15 },
+                // MM
+                { "mm0", ZYDIS_REGISTER_MM0 },
+                { "mm1", ZYDIS_REGISTER_MM1 },
+                { "mm2", ZYDIS_REGISTER_MM2 },
+                { "mm3", ZYDIS_REGISTER_MM3 },
+                { "mm4", ZYDIS_REGISTER_MM4 },
+                { "mm5", ZYDIS_REGISTER_MM5 },
+                { "mm6", ZYDIS_REGISTER_MM6 },
+                { "mm7", ZYDIS_REGISTER_MM7 },
+                // Special.
                 { "flags", ZYDIS_REGISTER_EFLAGS },
             });
 
@@ -222,6 +257,8 @@ namespace zyemu::tests
         }
 
         std::string line;
+        line.reserve(512);
+
         if (!std::getline(fs, line))
         {
             return std::nullopt;
@@ -325,6 +362,8 @@ namespace zyemu::tests
     {
         std::vector<TestParam> params;
 
+        std::ios::sync_with_stdio(false);
+
         // Open all files and collect test parameters
         for (const auto& filePath : filePaths)
         {
@@ -343,6 +382,8 @@ namespace zyemu::tests
             std::ifstream& fs = _fileStreams[filePath];
 
             std::string line;
+            line.reserve(512);
+
             while (true)
             {
                 std::streampos pos = fs.tellg();

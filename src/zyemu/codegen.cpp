@@ -29,6 +29,10 @@ namespace zyemu::codegen
         std::uint32_t flagsModified{};
     };
 
+    static constexpr std::array kAvailableMmxRegs = {
+        x86::mm0, x86::mm1, x86::mm2, x86::mm3, x86::mm4, x86::mm5, x86::mm6, x86::mm7,
+    };
+
     // 32 bit mode.
     // NOTE: We start with rcx as that is the first allocated register for the context.
     static constexpr std::array kVolatileGpRegs32 = {
@@ -70,6 +74,32 @@ namespace zyemu::codegen
         x86::xmm8, x86::xmm9, x86::xmm10, x86::xmm11, x86::xmm12, x86::xmm13, x86::xmm14, x86::xmm15,
     };
 
+    static const std::array kVolatileYmmRegs = {
+        x86::ymm0, x86::ymm1, x86::ymm2, x86::ymm3, x86::ymm4, x86::ymm5,
+    };
+
+    static const std::array kNonVolatileYmmRegs = {
+        x86::ymm6, x86::ymm7, x86::ymm8, x86::ymm9, x86::ymm10, x86::ymm11, x86::ymm12, x86::ymm13, x86::ymm14, x86::ymm15,
+    };
+
+    static constexpr std::array kAvailableYmmRegs = {
+        x86::ymm0, x86::ymm1, x86::ymm2,  x86::ymm3,  x86::ymm4,  x86::ymm5,  x86::ymm6,  x86::ymm7,
+        x86::ymm8, x86::ymm9, x86::ymm10, x86::ymm11, x86::ymm12, x86::ymm13, x86::ymm14, x86::ymm15,
+    };
+
+    static const std::array kVolatileZmmRegs = {
+        x86::zmm0, x86::zmm1, x86::zmm2, x86::zmm3, x86::zmm4, x86::zmm5,
+    };
+
+    static const std::array kNonVolatileZmmRegs = {
+        x86::zmm6, x86::zmm7, x86::zmm8, x86::zmm9, x86::zmm10, x86::zmm11, x86::zmm12, x86::zmm13, x86::zmm14, x86::zmm15,
+    };
+
+    static constexpr std::array kAvailableZmmRegs = {
+        x86::zmm0, x86::zmm1, x86::zmm2,  x86::zmm3,  x86::zmm4,  x86::zmm5,  x86::zmm6,  x86::zmm7,
+        x86::zmm8, x86::zmm9, x86::zmm10, x86::zmm11, x86::zmm12, x86::zmm13, x86::zmm14, x86::zmm15,
+    };
+
     struct FastCallInfoWin64
     {
         static constexpr x86::Reg gpArg0 = x86::rcx;
@@ -104,9 +134,11 @@ namespace zyemu::codegen
 
         // Register allocation state.
         sfl::static_vector<x86::Reg, 16> freeGpRegs{};
-        sfl::static_vector<x86::Reg, 16> freeXmmRegs{};
+        sfl::static_vector<x86::Reg, 16> freeSimdRegs{};
+        sfl::static_vector<x86::Reg, 8> freeMmxRegs{};
         RegSet usedGpRegs{};
         RegSet usedSimdRegs{};
+        RegSet usedMmxRegs{};
 
         // Registers as largest used by the instruction.
         RegSet regsIn{};
@@ -132,6 +164,42 @@ namespace zyemu::codegen
         return true;
     }
 
+    static inline std::span<const x86::Reg> getLargestAvailableSimdRegs() noexcept
+    {
+        if (platform::supportsAVX512())
+        {
+            return kAvailableZmmRegs;
+        }
+        else if (platform::supportsAVX())
+        {
+            return kAvailableYmmRegs;
+        }
+        else if (platform::supportsSSE2())
+        {
+            return kAvailableXmmRegs;
+        }
+        assert(false);
+        return {};
+    }
+
+    static inline std::span<const x86::Reg> getLargestNonVolatileSimdRegs() noexcept
+    {
+        if (platform::supportsAVX512())
+        {
+            return kNonVolatileZmmRegs;
+        }
+        else if (platform::supportsAVX())
+        {
+            return kNonVolatileYmmRegs;
+        }
+        else if (platform::supportsSSE2())
+        {
+            return kNonVolatileXmmRegs;
+        }
+        assert(false);
+        return {};
+    }
+
     static inline x86::Reg getLargestSupportedReg(ZydisMachineMode mode, x86::Reg reg)
     {
         if (!reg.isValid())
@@ -145,14 +213,21 @@ namespace zyemu::codegen
         {
             const auto regIndex = regOut.value - ZYDIS_REGISTER_ZMM0;
 
-            if (platform::supportsAVX2())
+            if (platform::supportsAVX())
             {
                 // Convert to ymm.
                 return x86::Reg{ static_cast<ZydisRegister>(ZYDIS_REGISTER_YMM0 + regIndex) };
             }
-
-            // Convert to xmm.
-            return x86::Reg{ static_cast<ZydisRegister>(ZYDIS_REGISTER_XMM0 + regIndex) };
+            else if (platform::supportsSSE2())
+            {
+                // Convert to xmm.
+                return x86::Reg{ static_cast<ZydisRegister>(ZYDIS_REGISTER_XMM0 + regIndex) };
+            }
+            else
+            {
+                assert(false);
+                return {};
+            }
         }
 
         return regOut;
@@ -224,7 +299,11 @@ namespace zyemu::codegen
     static StatusCode initFreeRegs(GeneratorState& state)
     {
         state.freeGpRegs.insert(state.freeGpRegs.end(), kAvailableGpRegs64.begin(), kAvailableGpRegs64.end());
-        state.freeXmmRegs.insert(state.freeXmmRegs.end(), kAvailableXmmRegs.begin(), kAvailableXmmRegs.end());
+
+        const auto simdRegs = getLargestAvailableSimdRegs();
+        state.freeSimdRegs.insert(state.freeSimdRegs.end(), simdRegs.begin(), simdRegs.end());
+
+        state.freeMmxRegs.insert(state.freeMmxRegs.end(), kAvailableMmxRegs.begin(), kAvailableMmxRegs.end());
 
         return StatusCode::success;
     }
@@ -264,29 +343,65 @@ namespace zyemu::codegen
 
     static Result<x86::Reg> allocateSimdReg(GeneratorState& state, x86::Reg preferredReg = {})
     {
-        if (state.freeXmmRegs.empty())
+        if (state.freeSimdRegs.empty())
         {
             assert(false);
             return StatusCode::noFreeRegisters;
         }
+
         x86::Reg res{};
+
         // If we have a preferred register, try to allocate it first.
         if (preferredReg != x86::Reg{})
         {
-            auto it = std::find(state.freeXmmRegs.begin(), state.freeXmmRegs.end(), preferredReg);
-            if (it != state.freeXmmRegs.end())
+            auto it = std::find(state.freeSimdRegs.begin(), state.freeSimdRegs.end(), preferredReg);
+            if (it != state.freeSimdRegs.end())
             {
                 res = *it;
-                state.freeXmmRegs.erase(it);
+                state.freeSimdRegs.erase(it);
             }
         }
+
         if (!res.isValid())
         {
             // No preferred register, just take the first one.
-            res = state.freeXmmRegs.front();
-            state.freeXmmRegs.erase(state.freeXmmRegs.begin());
+            res = state.freeSimdRegs.front();
+            state.freeSimdRegs.erase(state.freeSimdRegs.begin());
         }
+
         state.usedSimdRegs.insert(res);
+        return { res };
+    }
+
+    static Result<x86::Reg> allocateMmxReg(GeneratorState& state, x86::Reg preferredReg = {})
+    {
+        if (state.freeMmxRegs.empty())
+        {
+            assert(false);
+            return StatusCode::noFreeRegisters;
+        }
+
+        x86::Reg res{};
+
+        // If we have a preferred register, try to allocate it first.
+        if (preferredReg != x86::Reg{})
+        {
+            auto it = std::find(state.freeMmxRegs.begin(), state.freeMmxRegs.end(), preferredReg);
+            if (it != state.freeMmxRegs.end())
+            {
+                res = *it;
+                state.freeMmxRegs.erase(it);
+            }
+        }
+
+        if (!res.isValid())
+        {
+            // No preferred register, just take the first one.
+            res = state.freeMmxRegs.front();
+            state.freeMmxRegs.erase(state.freeMmxRegs.begin());
+        }
+
+        state.usedMmxRegs.insert(res);
         return { res };
     }
 
@@ -354,13 +469,38 @@ namespace zyemu::codegen
 
             for (const auto reg : regsUsed)
             {
-                auto remappedReg = allocateGpReg(state, reg);
-                if (remappedReg.hasError())
+                if (reg.isGpFamily())
                 {
-                    return remappedReg.getError();
-                }
+                    auto remappedReg = allocateGpReg(state, reg);
+                    if (remappedReg.hasError())
+                    {
+                        return remappedReg.getError();
+                    }
 
-                state.regRemap[reg] = *remappedReg;
+                    state.regRemap[reg] = *remappedReg;
+                }
+                else if (reg.isSimdFamily())
+                {
+                    auto remappedReg = allocateSimdReg(state, reg);
+                    if (remappedReg.hasError())
+                    {
+                        return remappedReg.getError();
+                    }
+                    state.regRemap[reg] = *remappedReg;
+                }
+                else if (reg.isMmx())
+                {
+                    auto remappedReg = allocateMmxReg(state, reg);
+                    if (remappedReg.hasError())
+                    {
+                        return remappedReg.getError();
+                    }
+                    state.regRemap[reg] = *remappedReg;
+                }
+                else
+                {
+                    assert(false); // Unsupported register type.
+                }
             }
         }
 
@@ -401,7 +541,7 @@ namespace zyemu::codegen
         ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -120));
         ar.mov(frameReg, x86::rsp); // Save the stack frame pointer.
 
-        // Save non-volatile registers.
+        // Save non-volatile GP registers.
         std::int32_t savedOffset = 0;
         for (const auto reg : state.usedGpRegs)
         {
@@ -409,6 +549,25 @@ namespace zyemu::codegen
             {
                 const auto regBitSize = ZydisRegisterGetWidth(state.mode, reg);
                 ar.mov(x86::ptr(regBitSize, frameReg, savedOffset), reg);
+                savedOffset += regBitSize / 8;
+            }
+        }
+
+        // Save non-volatile SIMD registers.
+        const auto nonVolatileSimdRegs = getLargestNonVolatileSimdRegs();
+        for (const auto reg : state.usedSimdRegs)
+        {
+            if (std::ranges::contains(nonVolatileSimdRegs, reg))
+            {
+                const auto regBitSize = ZydisRegisterGetWidth(state.mode, reg);
+                if (reg.isXmm())
+                {
+                    ar.movups(x86::ptr(regBitSize, frameReg, savedOffset), reg);
+                }
+                else if (reg.isYmm())
+                {
+                    ar.vmovups(x86::ptr(regBitSize, frameReg, savedOffset), reg);
+                }
                 savedOffset += regBitSize / 8;
             }
         }
@@ -427,9 +586,30 @@ namespace zyemu::codegen
                 const auto ctxRegInfo = getContextRegInfo(state.mode, regIn);
                 ar.mov(remappedReg, x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset));
             }
+            else if (regIn.isSimdFamily())
+            {
+                assert(state.regRemap.contains(regIn));
+                const auto remappedReg = state.regRemap[regIn];
+                const auto ctxRegInfo = getContextRegInfo(state.mode, regIn);
+                if (remappedReg.isXmm())
+                {
+                    ar.movups(remappedReg, x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset));
+                }
+                else if (remappedReg.isYmm())
+                {
+                    ar.vmovups(remappedReg, x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset));
+                }
+            }
+            else if (regIn.isMmx())
+            {
+                assert(state.regRemap.contains(regIn));
+                const auto remappedReg = state.regRemap[regIn];
+                const auto ctxRegInfo = getContextRegInfo(state.mode, regIn);
+                ar.movq(remappedReg, x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset));
+            }
             else
             {
-                assert(false);
+                assert(false); // Unsupported register type.
             }
         }
 
@@ -457,6 +637,27 @@ namespace zyemu::codegen
                 const auto ctxRegInfo = getContextRegInfo(state.mode, regOut);
                 ar.mov(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
             }
+            else if (regOut.isSimdFamily())
+            {
+                assert(state.regRemap.contains(regOut));
+                const auto remappedReg = state.regRemap[regOut];
+                const auto ctxRegInfo = getContextRegInfo(state.mode, regOut);
+                if (remappedReg.isXmm())
+                {
+                    ar.movups(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
+                }
+                else if (remappedReg.isYmm())
+                {
+                    ar.vmovups(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
+                }
+            }
+            else if (regOut.isMmx())
+            {
+                assert(state.regRemap.contains(regOut));
+                const auto remappedReg = state.regRemap[regOut];
+                const auto ctxRegInfo = getContextRegInfo(state.mode, regOut);
+                ar.movq(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
+            }
             else
             {
                 assert(false);
@@ -466,7 +667,7 @@ namespace zyemu::codegen
         // Status result.
         ar.mov(x86::eax, x86::Imm(StatusCode::success));
 
-        // Restore non-volatile.
+        // Restore non-volatile GP registers.
         std::int32_t savedOffset = 0;
         for (const auto reg : state.usedGpRegs)
         {
@@ -474,6 +675,25 @@ namespace zyemu::codegen
             {
                 const auto regBitSize = ZydisRegisterGetWidth(state.mode, reg);
                 ar.mov(reg, x86::ptr(regBitSize, frameReg, savedOffset));
+                savedOffset += regBitSize / 8;
+            }
+        }
+
+        // Restore non-volatile SIMD registers.
+        const auto nonVolatileSimdRegs = getLargestNonVolatileSimdRegs();
+        for (const auto reg : state.usedSimdRegs)
+        {
+            if (std::ranges::contains(nonVolatileSimdRegs, reg))
+            {
+                const auto regBitSize = ZydisRegisterGetWidth(state.mode, reg);
+                if (reg.isXmm())
+                {
+                    ar.movups(reg, x86::ptr(regBitSize, frameReg, savedOffset));
+                }
+                else if (reg.isYmm())
+                {
+                    ar.vmovups(reg, x86::ptr(regBitSize, frameReg, savedOffset));
+                }
                 savedOffset += regBitSize / 8;
             }
         }
@@ -620,13 +840,30 @@ namespace zyemu::codegen
         }
 
         // Handle some Zydis inaccuracies, before extracting the information.
-        if (instr.decoded.mnemonic == ZYDIS_MNEMONIC_BSR || instr.decoded.mnemonic == ZYDIS_MNEMONIC_BSF)
+        switch (instr.decoded.mnemonic)
         {
-            // Mark first operand as conditional write given that if source is zero the operand will
-            // not be written.
-            if (instr.decoded.operand_count > 0)
+            case ZYDIS_MNEMONIC_BSR:
+            case ZYDIS_MNEMONIC_BSF:
             {
-                instr.operands[0].actions = ZYDIS_OPERAND_ACTION_CONDWRITE;
+                // Mark first operand as conditional write given that if source is zero the operand will
+                // not be written.
+                if (instr.decoded.operand_count > 0)
+                {
+                    instr.operands[0].actions = ZYDIS_OPERAND_ACTION_CONDWRITE;
+                }
+                break;
+            }
+            case ZYDIS_MNEMONIC_CVTSD2SS:
+            case ZYDIS_MNEMONIC_CVTSS2SD:
+            case ZYDIS_MNEMONIC_RCPPS:
+            case ZYDIS_MNEMONIC_RCPSS:
+            {
+                // First operand is partial write so we need to add read.
+                if (instr.decoded.operand_count > 0)
+                {
+                    instr.operands[0].actions |= ZYDIS_OPERAND_ACTION_READ;
+                }
+                break;
             }
         }
 
