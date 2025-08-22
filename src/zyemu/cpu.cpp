@@ -2,6 +2,7 @@
 #include "codegen.hpp"
 #include "internal.hpp"
 #include "registers.hpp"
+#include "thread.hpp"
 
 #include <zyemu/zyemu.hpp>
 
@@ -48,6 +49,7 @@ namespace zyemu
             default:
                 return StatusCode::invalidMode;
         }
+
         if (auto status = ZydisDecoderInit(&state->decoder, mode, stackWidth); status != ZYAN_STATUS_SUCCESS)
         {
             return StatusCode::invalidMode;
@@ -57,6 +59,7 @@ namespace zyemu
         {
             return StatusCode::invalidMode;
         }
+
         ZydisDecoderEnableMode(&state->ldeDecoder, ZYDIS_DECODER_MODE_MINIMAL, true);
 
         state->mode = mode;
@@ -140,7 +143,7 @@ namespace zyemu
         th.state = ThreadState::dead;
     }
 
-    StatusCode CPU::setRegData(ThreadId tid, ZydisRegister reg, std::span<const std::byte> data)
+    StatusCode CPU::setRegData(ThreadId tid, Reg reg, std::span<const std::byte> data)
     {
         auto* th = getThread(state, tid);
         if (!th)
@@ -164,7 +167,7 @@ namespace zyemu
         return StatusCode::success;
     }
 
-    StatusCode CPU::getRegData(ThreadId tid, ZydisRegister reg, std::span<std::byte> buffer)
+    StatusCode CPU::getRegData(ThreadId tid, Reg reg, std::span<std::byte> buffer)
     {
         auto* th = getThread(state, tid);
         if (!th)

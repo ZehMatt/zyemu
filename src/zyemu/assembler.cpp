@@ -83,14 +83,14 @@ namespace zyemu::x86
         {
             const auto op = instr.operands[i];
             auto& dstOp = request.operands[i];
-            if (const auto* opReg = std::get_if<x86::Reg>(&op); opReg != nullptr)
+            if (const auto* opReg = std::get_if<Reg>(&op); opReg != nullptr)
             {
                 dstOp.type = ZYDIS_OPERAND_TYPE_REGISTER;
                 dstOp.reg.value = opReg->value;
 
                 assert(opReg->value != ZYDIS_REGISTER_NONE);
             }
-            else if (const auto* opMem = std::get_if<x86::Mem>(&op); opMem != nullptr)
+            else if (const auto* opMem = std::get_if<Mem>(&op); opMem != nullptr)
             {
                 dstOp.type = ZYDIS_OPERAND_TYPE_MEMORY;
                 dstOp.mem.size = opMem->bitSize / 8;
@@ -111,12 +111,12 @@ namespace zyemu::x86
                     }
                 }
             }
-            else if (const auto* opImm = std::get_if<x86::Imm>(&op); opImm != nullptr)
+            else if (const auto* opImm = std::get_if<Imm>(&op); opImm != nullptr)
             {
                 dstOp.type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
                 dstOp.imm.s = opImm->value;
             }
-            else if (const auto* opLabel = std::get_if<x86::Label>(&op); opLabel != nullptr)
+            else if (const auto* opLabel = std::get_if<Label>(&op); opLabel != nullptr)
             {
                 dstOp.type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
                 assert(opLabel->isValid());

@@ -39,6 +39,7 @@ set(CMAKE_FOLDER ${CMKR_CMAKE_FOLDER})
 # Target: zyemu
 set(zyemu_SOURCES
 	cmake.toml
+	"include/zyemu/registers.hpp"
 	"include/zyemu/types.hpp"
 	"include/zyemu/zyemu.hpp"
 	"src/zyemu/assembler.cpp"
@@ -48,11 +49,15 @@ set(zyemu_SOURCES
 	"src/zyemu/codegen.cpp"
 	"src/zyemu/codegen.hpp"
 	"src/zyemu/cpu.cpp"
+	"src/zyemu/immediate.hpp"
 	"src/zyemu/internal.hpp"
+	"src/zyemu/label.hpp"
+	"src/zyemu/memory.hpp"
 	"src/zyemu/platform.cpp"
 	"src/zyemu/platform.hpp"
 	"src/zyemu/registers.cpp"
-	"src/zyemu/registers.hpp"
+	"src/zyemu/thread.cpp"
+	"src/zyemu/thread.hpp"
 )
 
 add_library(zyemu STATIC)
@@ -74,6 +79,10 @@ endif()
 
 target_include_directories(zyemu PUBLIC
 	include
+)
+
+target_include_directories(zyemu PRIVATE
+	"include/zyemu"
 )
 
 target_link_libraries(zyemu PUBLIC

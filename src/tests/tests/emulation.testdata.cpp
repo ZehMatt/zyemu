@@ -172,14 +172,6 @@ namespace zyemu::tests
 
     // clang-format off
     static const std::vector<std::string> allTestFiles = {
-        //"testdata/div.txt", // not handled properly
-        //"testdata/mul.txt", // not handled properly
-        //"testdata/scasb.txt",
-        //"testdata/scasd.txt",
-        //"testdata/scasq.txt",
-        //"testdata/cmpsb.txt",
-        //"testdata/shld.txt", // fails
-        //"testdata/lar.txt", // fails
         // SIMD
         "testdata/xorps.txt",
         "testdata/xorpd.txt",
@@ -291,6 +283,14 @@ namespace zyemu::tests
         "testdata/addsd.txt",
         "testdata/addpd.txt",
         // General Purpose.
+        //"testdata/div.txt", // not handled properly
+        //"testdata/mul.txt", // not handled properly
+        //"testdata/scasb.txt",
+        //"testdata/scasd.txt",
+        //"testdata/scasq.txt",
+        //"testdata/cmpsb.txt",
+        //"testdata/shld.txt", // fails
+        //"testdata/lar.txt", // fails
         "testdata/xadd.txt",
         "testdata/std.txt",
         "testdata/shlx.txt",

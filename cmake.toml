@@ -17,18 +17,24 @@ sources = [
     "src/zyemu/cpu.cpp",
     "src/zyemu/platform.cpp",
     "src/zyemu/registers.cpp",
+    "src/zyemu/thread.cpp",
 ]
 headers = [
     "include/zyemu/types.hpp",
     "include/zyemu/zyemu.hpp",
+    "include/zyemu/registers.hpp",
+    "src/zyemu/memory.hpp",
+    "src/zyemu/label.hpp",
+    "src/zyemu/immediate.hpp",
     "src/zyemu/assembler.hpp",
     "src/zyemu/codecache.hpp",
     "src/zyemu/codegen.hpp",
     "src/zyemu/internal.hpp",
     "src/zyemu/platform.hpp",
-    "src/zyemu/registers.hpp",
+    "src/zyemu/thread.hpp",
 ]
 include-directories = ["include"]
+private-include-directories = ["include/zyemu"]
 compile-features = ["cxx_std_23"]
 link-libraries = ["Zydis", "sfl::sfl"]
 msvc.private-compile-options = ["/MP", "$<$<CONFIG:Release>:/Oi>"]

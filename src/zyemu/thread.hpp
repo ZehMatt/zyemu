@@ -2,9 +2,6 @@
 
 #include "internal.hpp"
 
-#include <cassert>
-#include <cstddef>
-
 namespace zyemu
 {
     struct RegInfo

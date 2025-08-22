@@ -8,10 +8,10 @@ namespace zyemu::tests
 {
     struct RegChangeCase
     {
-        x86::Reg input;
+        Reg input;
         int size;
         bool high;
-        x86::Reg expected;
+        Reg expected;
     };
 
     class ChangeRegSizeTest : public ::testing::TestWithParam<RegChangeCase>
