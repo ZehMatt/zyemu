@@ -1,5 +1,6 @@
 #include "codegen.hpp"
 
+#include "assembler.hpp"
 #include "thread.hpp"
 
 #include <array>
@@ -7,7 +8,7 @@
 
 namespace zyemu::codegen
 {
-    static Result<x86::Operand> loadOperand(GeneratorState& state, const DecodedInstruction& instr, size_t operandIdx)
+    static Result<Operand> loadOperand(GeneratorState& state, const DecodedInstruction& instr, size_t operandIdx)
     {
         const auto& op = instr.operands[operandIdx];
 
@@ -101,7 +102,7 @@ namespace zyemu::codegen
 
         // Handle the instruction
         {
-            x86::Instruction newInstr{};
+            Instruction newInstr{};
             newInstr.mnemonic = instr.decoded.mnemonic;
 
             for (std::size_t i = 0; i < instr.decoded.operand_count_visible; ++i)
@@ -178,7 +179,7 @@ namespace zyemu::codegen
         }
 
         // div.
-        x86::Instruction divIns;
+        Instruction divIns;
         divIns.operands.push_back(*opDivisor);
         divIns.mnemonic = ZYDIS_MNEMONIC_DIV;
         ar.emit(divIns);
@@ -250,7 +251,7 @@ namespace zyemu::codegen
 #endif
 
         // idiv.
-        x86::Instruction idivIns;
+        Instruction idivIns;
         idivIns.operands.push_back(*opDivisor);
         idivIns.mnemonic = ZYDIS_MNEMONIC_IDIV;
         ar.emit(idivIns);

@@ -2,7 +2,6 @@
 
 #include "assembler.hpp"
 #include "internal.hpp"
-#include "label.hpp"
 #include "registers.hpp"
 
 #include <Zydis/SharedTypes.h>

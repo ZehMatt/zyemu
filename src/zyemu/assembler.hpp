@@ -1,8 +1,6 @@
 #pragma once
 
-#include "immediate.hpp"
-#include "label.hpp"
-#include "memory.hpp"
+#include "assembler.types.hpp"
 
 #include <Zydis/Encoder.h>
 #include <Zydis/Mnemonic.h>
@@ -19,15 +17,6 @@
 
 namespace zyemu::x86
 {
-
-    using Operand = std::variant<Reg, Mem, Label, Imm>;
-
-    struct Instruction
-    {
-        ZydisMnemonic mnemonic{};
-        sfl::static_vector<Operand, ZYDIS_ENCODER_MAX_OPERANDS> operands{};
-    };
-
     class Assembler
     {
     public:
@@ -81,8 +70,7 @@ namespace zyemu::x86
             return emit(ZYDIS_MNEMONIC_CMP, lhs, rhs);
         }
 
-        template<typename TOp0, typename TOp1>
-        Assembler& mov(const TOp0& dst, const TOp1& src)
+        template<typename TOp0, typename TOp1> Assembler& mov(const TOp0& dst, const TOp1& src)
         {
             return emit(ZYDIS_MNEMONIC_MOV, dst, src);
         }
