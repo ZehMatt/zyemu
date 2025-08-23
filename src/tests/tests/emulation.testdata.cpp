@@ -60,21 +60,21 @@ namespace zyemu::tests
 
             if (testEntry.exceptionType == ExceptionType::kIntDivideError)
             {
-                EXPECT_EQ(status, zyemu::StatusCode::exceptionIntDivideError);
+                ASSERT_EQ(status, zyemu::StatusCode::exceptionIntDivideError);
                 continue;
             }
             else if (testEntry.exceptionType == ExceptionType::kIntOverflow)
             {
-                EXPECT_EQ(status, zyemu::StatusCode::exceptionIntOverflow);
+                ASSERT_EQ(status, zyemu::StatusCode::exceptionIntOverflow);
                 continue;
             }
 
-            EXPECT_EQ(status, zyemu::StatusCode::success);
+            ASSERT_EQ(status, zyemu::StatusCode::success);
 
             std::uint64_t rip{};
             ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
 
-            EXPECT_EQ(rip, entry.rip + instrBytes.size());
+            ASSERT_EQ(rip, entry.rip + instrBytes.size());
 
             // Check outputs.
             for (const auto& regData : testEntry.outputs)
@@ -85,7 +85,7 @@ namespace zyemu::tests
                     std::memcpy(&expectedFlags, regData.data.data(), sizeof(expectedFlags));
 
                     std::uint32_t actualFlags{};
-                    EXPECT_EQ(ctx.getRegValue(th1, ZYDIS_REGISTER_EFLAGS, actualFlags), zyemu::StatusCode::success);
+                    ASSERT_EQ(ctx.getRegValue(th1, ZYDIS_REGISTER_EFLAGS, actualFlags), zyemu::StatusCode::success);
 
                     // Remove IF and reserved.
                     actualFlags &= ~(ZYDIS_CPUFLAG_IF | (1u << 1));
@@ -95,16 +95,16 @@ namespace zyemu::tests
                     actualFlags &= ~undefinedFlags;
                     expectedFlags &= ~undefinedFlags;
 
-                    EXPECT_EQ(actualFlags, expectedFlags);
+                    ASSERT_EQ(actualFlags, expectedFlags);
                 }
                 else
                 {
                     RawData actualData{};
                     actualData.resize(regData.data.size());
 
-                    EXPECT_EQ(ctx.getRegData(th1, regData.reg, actualData), zyemu::StatusCode::success)
+                    ASSERT_EQ(ctx.getRegData(th1, regData.reg, actualData), zyemu::StatusCode::success)
                         << ZydisRegisterGetString(regData.reg);
-                    EXPECT_EQ(actualData, regData.data) << ZydisRegisterGetString(regData.reg);
+                    ASSERT_EQ(actualData, regData.data) << ZydisRegisterGetString(regData.reg);
                 }
             }
         }
@@ -171,6 +171,15 @@ namespace zyemu::tests
     };
 
     // clang-format off
+#if 0
+    static const std::vector<std::string> allTestFiles = {
+        //"testdata/shld.txt",
+        //"testdata/mul.txt",
+        //"testdata/idiv.txt",
+        //"testdata/div.txt",
+        //"testdata/cmppd.txt",
+    };
+#else
     static const std::vector<std::string> allTestFiles = {
         // SIMD
         "testdata/xorps.txt",
@@ -283,57 +292,40 @@ namespace zyemu::tests
         "testdata/addsd.txt",
         "testdata/addpd.txt",
         // General Purpose.
-        //"testdata/div.txt", // not handled properly
-        //"testdata/mul.txt", // not handled properly
+        // 
+        //"testdata/cmpsb.txt",
+        "testdata/div.txt",
+        //"testdata/idiv.txt",
+        //"testdata/lar.txt", // fails
+        "testdata/mul.txt",
         //"testdata/scasb.txt",
         //"testdata/scasd.txt",
         //"testdata/scasq.txt",
-        //"testdata/cmpsb.txt",
-        //"testdata/shld.txt", // fails
-        //"testdata/lar.txt", // fails
-        "testdata/xadd.txt",
-        "testdata/std.txt",
-        "testdata/shlx.txt",
-        "testdata/sarx.txt",
-        "testdata/sahf.txt",
-        "testdata/rorx.txt",
-        "testdata/rcl.txt",
-        "testdata/lzcnt.txt",
-        "testdata/inc.txt",
-        "testdata/cwde.txt",
-        "testdata/cwd.txt",
-        "testdata/cqo.txt",
-        "testdata/cmc.txt",
-        "testdata/cbw.txt",
-        "testdata/bzhi.txt",
-        "testdata/blsr.txt",
-        "testdata/blsmsk.txt",
-        "testdata/blsi.txt",
-        "testdata/bextr.txt",
-        "testdata/andn.txt",
+        "testdata/shld.txt",
         "testdata/adc.txt",
         "testdata/adcx.txt",
-        "testdata/adox.txt",
-        "testdata/lea.txt",
-        "testdata/clc.txt",
-        "testdata/cld.txt",
-        "testdata/stc.txt",
-        "testdata/xchg.txt",
-        "testdata/bsr.txt",
-        "testdata/bsf.txt",
-        "testdata/shl.txt",
-        "testdata/movsx.txt",
-        "testdata/bswap.txt",
-        "testdata/sub.txt",
         "testdata/add.txt",
-        "testdata/mov.txt",
+        "testdata/adox.txt",
         "testdata/and.txt",
+        "testdata/andn.txt",
+        "testdata/bextr.txt",
+        "testdata/blsi.txt",
+        "testdata/blsmsk.txt",
+        "testdata/blsr.txt",
+        "testdata/bsf.txt",
+        "testdata/bsr.txt",
+        "testdata/bswap.txt",
         "testdata/bt.txt",
         "testdata/btc.txt",
         "testdata/btr.txt",
         "testdata/bts.txt",
+        "testdata/bzhi.txt",
+        "testdata/cbw.txt",
         "testdata/cdq.txt",
         "testdata/cdqe.txt",
+        "testdata/clc.txt",
+        "testdata/cld.txt",
+        "testdata/cmc.txt",
         "testdata/cmovb.txt",
         "testdata/cmovbe.txt",
         "testdata/cmovl.txt",
@@ -352,17 +344,29 @@ namespace zyemu::tests
         "testdata/cmovz.txt",
         "testdata/cmp.txt",
         "testdata/cmpxchg.txt",
+        "testdata/cqo.txt",
+        "testdata/cwd.txt",
+        "testdata/cwde.txt",
         "testdata/dec.txt",
+        "testdata/inc.txt",
         "testdata/lahf.txt",
+        "testdata/lea.txt",
+        "testdata/lzcnt.txt",
+        "testdata/mov.txt",
+        "testdata/movsx.txt",
         "testdata/movsxd.txt",
         "testdata/movzx.txt",
         "testdata/neg.txt",
         "testdata/not.txt",
         "testdata/or.txt",
+        "testdata/rcl.txt",
         "testdata/rcr.txt",
         "testdata/rol.txt",
         "testdata/ror.txt",
+        "testdata/rorx.txt",
+        "testdata/sahf.txt",
         "testdata/sar.txt",
+        "testdata/sarx.txt",
         "testdata/sbb.txt",
         "testdata/setb.txt",
         "testdata/setbe.txt",
@@ -381,10 +385,18 @@ namespace zyemu::tests
         "testdata/sets.txt",
         "testdata/setz.txt",
         "testdata/shl.txt",
+        "testdata/shl.txt",
+        "testdata/shlx.txt",
         "testdata/shr.txt",
+        "testdata/stc.txt",
+        "testdata/std.txt",
+        "testdata/sub.txt",
         "testdata/test.txt",
+        "testdata/xadd.txt",
+        "testdata/xchg.txt",
         "testdata/xor.txt",
     };
+#endif
     // clang-format on
 
     INSTANTIATE_TEST_SUITE_P(

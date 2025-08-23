@@ -1,8 +1,8 @@
 #pragma once
 
+#include "immediate.hpp"
 #include "label.hpp"
 #include "memory.hpp"
-#include "immediate.hpp"
 
 #include <Zydis/Encoder.h>
 #include <Zydis/Mnemonic.h>
@@ -61,27 +61,28 @@ namespace zyemu::x86
             return *this;
         }
 
-        Assembler& mov(const Reg& dst, const Reg& src)
+        Assembler& cmp(const Reg& lhs, const Reg& rhs)
         {
-            return emit(ZYDIS_MNEMONIC_MOV, dst, src);
+            return emit(ZYDIS_MNEMONIC_CMP, lhs, rhs);
         }
 
-        Assembler& mov(const Reg& dst, const Imm& src)
+        Assembler& cmp(const Mem& lhs, const Reg& rhs)
         {
-            return emit(ZYDIS_MNEMONIC_MOV, dst, src);
+            return emit(ZYDIS_MNEMONIC_CMP, lhs, rhs);
         }
 
-        Assembler& mov(const Reg& dst, const Mem& src)
+        Assembler& cmp(const Mem& lhs, const Imm& rhs)
         {
-            return emit(ZYDIS_MNEMONIC_MOV, dst, src);
+            return emit(ZYDIS_MNEMONIC_CMP, lhs, rhs);
         }
 
-        Assembler& mov(const Mem& dst, const Reg& src)
+        Assembler& cmp(const Operand& lhs, const Operand& rhs)
         {
-            return emit(ZYDIS_MNEMONIC_MOV, dst, src);
+            return emit(ZYDIS_MNEMONIC_CMP, lhs, rhs);
         }
 
-        Assembler& mov(const Mem& dst, const Imm& src)
+        template<typename TOp0, typename TOp1>
+        Assembler& mov(const TOp0& dst, const TOp1& src)
         {
             return emit(ZYDIS_MNEMONIC_MOV, dst, src);
         }
@@ -186,24 +187,74 @@ namespace zyemu::x86
             return emit(ZYDIS_MNEMONIC_TEST, dst, src);
         }
 
+        template<typename Op0> Assembler& neg(const Op0& dst)
+        {
+            return emit(ZYDIS_MNEMONIC_NEG, dst);
+        }
+
+        template<typename Op0, typename Op1> Assembler& adc(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_ADC, dst);
+        }
+
+        template<typename Op0, typename Op1> Assembler& sar(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_SAR, dst, src);
+        }
+
+        template<typename Op0, typename Op1> Assembler& shl(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_SHL, dst, src);
+        }
+
+        template<typename Op0, typename Op1> Assembler& shr(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_SHR, dst, src);
+        }
+
+        template<typename Op0, typename Op1> Assembler& or_(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_OR, dst, src);
+        }
+
         Assembler& jnz(const Label& label)
         {
             return emit(ZYDIS_MNEMONIC_JNZ, label);
         }
 
+        Assembler& jb(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JB, label);
+        }
+
+        Assembler& ja(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JNBE, label);
+        }
+
+        Assembler& jns(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JNS, label);
+        }
+
+        Assembler& jne(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JZ, label);
+        }
+
+        Assembler& jge(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JNL, label);
+        }
+
         Assembler& jz(const Label& label)
         {
-            return emit(ZYDIS_MNEMONIC_JNZ, label);
+            return emit(ZYDIS_MNEMONIC_JZ, label);
         }
 
         Assembler& jae(const Label& label)
         {
             return emit(ZYDIS_MNEMONIC_JNB, label);
-        }
-
-        Assembler& cmp(const Reg& dst, const Reg& src)
-        {
-            return emit(ZYDIS_MNEMONIC_CMP, dst, src);
         }
 
         Assembler& movzx(const Reg& dst, const Reg& src)

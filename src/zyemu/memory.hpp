@@ -28,7 +28,7 @@ namespace zyemu
 
         inline Mem word_ptr(const Reg& base, std::int64_t disp = 0)
         {
-            return Mem{ 8, ds, base, {}, disp, 0, {} };
+            return Mem{ 16, ds, base, {}, disp, 0, {} };
         }
 
         inline Mem qword_ptr(const Reg& base, std::int64_t disp = 0)

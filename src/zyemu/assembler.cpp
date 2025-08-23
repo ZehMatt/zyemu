@@ -274,7 +274,7 @@ namespace zyemu::x86
                 auto encodeInfo = std::visit([&](const auto& data) { return handleNode(state, data); }, node);
                 if (!encodeInfo)
                 {
-                    std::println(std::cerr, "Failed to encode: {}", getNodeString(node));
+                    std::println(std::cout, "Failed to encode: {}", getNodeString(node));
                     return encodeInfo.getError();
                 }
 

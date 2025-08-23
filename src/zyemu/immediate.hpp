@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <type_traits>
 
 namespace zyemu
 {
@@ -35,5 +36,28 @@ namespace zyemu
         {
         }
     };
+
+    namespace detail
+    {
+
+        template<typename T> struct ImmT : public Imm
+        {
+            static_assert(std::is_integral_v<T> || std::is_enum_v<T>, "ImmT can only be used with integral or enum types");
+            constexpr ImmT(T imm) noexcept
+                : Imm(static_cast<std::int64_t>(imm))
+            {
+            }
+            constexpr operator T() const noexcept
+            {
+                return static_cast<T>(value);
+            }
+        };
+
+    } // namespace detail
+
+    using Imm8 = detail::ImmT<std::int8_t>;
+    using Imm16 = detail::ImmT<std::int16_t>;
+    using Imm32 = detail::ImmT<std::int32_t>;
+    using Imm64 = detail::ImmT<std::int64_t>;
 
 } // namespace zyemu

@@ -14,6 +14,7 @@ sources = [
     "src/zyemu/assembler.cpp",
     "src/zyemu/codecache.cpp",
     "src/zyemu/codegen.cpp",
+    "src/zyemu/codegen.handlers.cpp",
     "src/zyemu/cpu.cpp",
     "src/zyemu/platform.cpp",
     "src/zyemu/registers.cpp",

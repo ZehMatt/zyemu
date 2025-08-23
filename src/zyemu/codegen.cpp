@@ -16,19 +16,7 @@
 
 namespace zyemu::codegen
 {
-    using RegSet = sfl::static_flat_set<Reg, 32>;
-
-    struct DecodedInstruction
-    {
-        std::uint64_t address{};
-        ZydisDecodedInstruction decoded{};
-        ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT]{};
-        RegSet regsRead{};
-        RegSet regsModified{};
-        RegSet regsUsed{};
-        std::uint32_t flagsRead{};
-        std::uint32_t flagsModified{};
-    };
+    BodyGeneratorHandler getBodyGenerator(ZydisMnemonic mnemonic);
 
     static constexpr std::array kAvailableMmxRegs = {
         x86::mm0, x86::mm1, x86::mm2, x86::mm3, x86::mm4, x86::mm5, x86::mm6, x86::mm7,
@@ -58,9 +46,9 @@ namespace zyemu::codegen
         x86::rbx, x86::rsi, x86::rdi, x86::rbp, x86::r12, x86::r13, x86::r14, x86::r15,
     };
 
-    static constexpr std::array kAvailableGpRegs64 = { x86::rax, x86::rcx, x86::rdx, x86::rbx, x86::rsi,
-                                                       x86::rdi, x86::rbp, x86::r8,  x86::r9,  x86::r10,
-                                                       x86::r11, x86::r12, x86::r13, x86::r14, x86::r15 };
+    static constexpr std::array kAvailableGpRegs64 = { x86::rax, x86::rcx, x86::rdx, x86::r8,  x86::r9,
+                                                       x86::r10, x86::r11, x86::rbx, x86::rsi, x86::rdi,
+                                                       x86::rbp, x86::r12, x86::r13, x86::r14, x86::r15 };
 
     static const std::array kVolatileXmmRegs = {
         x86::xmm0, x86::xmm1, x86::xmm2, x86::xmm3, x86::xmm4, x86::xmm5,
@@ -121,33 +109,6 @@ namespace zyemu::codegen
 
     // FIXME: This must match the host platform.
     using FastCallInfo = FastCallInfoWin64;
-
-    struct GeneratorState
-    {
-        ZydisMachineMode mode{};
-        x86::Assembler assembler;
-        Label lblPrologue{};
-        Label lblEpilogueSuccess{};
-        Label lblEpilogueFailure{};
-
-        Reg regCtx{};
-        Reg regStackFrame{};
-
-        // Register allocation state.
-        sfl::static_vector<Reg, 16> freeGpRegs{};
-        sfl::static_vector<Reg, 16> freeSimdRegs{};
-        sfl::static_vector<Reg, 8> freeMmxRegs{};
-        RegSet usedGpRegs{};
-        RegSet usedSimdRegs{};
-        RegSet usedMmxRegs{};
-
-        // Registers as largest used by the instruction.
-        RegSet regsIn{};
-        RegSet regsOut{};
-
-        // Mapping from instruction to host.
-        sfl::static_flat_map<Reg, Reg, 8> regRemap{};
-    };
 
     static bool isAddressableReg(ZydisRegister reg)
     {
@@ -410,8 +371,7 @@ namespace zyemu::codegen
     {
         state.mode = instr.decoded.machine_mode;
         state.lblPrologue = state.assembler.createLabel();
-        state.lblEpilogueSuccess = state.assembler.createLabel();
-        state.lblEpilogueFailure = state.assembler.createLabel();
+        state.lblExit = state.assembler.createLabel();
 
         if (auto res = initFreeRegs(state); res != StatusCode::success)
         {
@@ -505,10 +465,30 @@ namespace zyemu::codegen
             }
         }
 
+        // Select register for status.
+        if (auto regStatus = allocateGpReg(state, x86::rax); regStatus.hasError())
+        {
+            return regStatus.getError();
+        }
+        else
+        {
+            state.regStatus = *regStatus;
+        }
+
+        // Allocate a temporary register.
+        if (auto regTemp = allocateGpReg(state, x86::r12); regTemp.hasError())
+        {
+            return regTemp.getError();
+        }
+        else
+        {
+            state.regTemp = *regTemp;
+        }
+
         return StatusCode::success;
     }
 
-    static Reg getRemappedReg(GeneratorState& state, Reg reg)
+    Reg getRemappedReg(GeneratorState& state, Reg reg)
     {
         if (!reg.isValid())
         {
@@ -625,8 +605,7 @@ namespace zyemu::codegen
         const auto frameReg = state.regStackFrame;
         const auto ctxStatusReg = getContextStatusReg(state.mode);
 
-        ar.bind(state.lblEpilogueSuccess);
-        ar.bind(state.lblEpilogueFailure);
+        ar.bind(state.lblExit);
 
         // Synchronize remapped registers back into the virtual context.
         for (auto regOut : state.regsOut)
@@ -665,8 +644,11 @@ namespace zyemu::codegen
             }
         }
 
-        // Status result.
-        ar.mov(x86::eax, Imm(StatusCode::success));
+        // Move status into eax/rax.
+        if (state.regStatus != x86::rax)
+        {
+            ar.mov(x86::rax, state.regStatus);
+        }
 
         // Restore non-volatile GP registers.
         std::int32_t savedOffset = 0;
@@ -711,91 +693,18 @@ namespace zyemu::codegen
 
     static StatusCode generateHandlerBody(GeneratorState& state, const DecodedInstruction& instr)
     {
-        auto& ar = state.assembler;
-
-        // Commonly accessed registers.
-        const auto baseReg = state.regCtx;
-        const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
-        const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
-        const auto ctxStatusReg = getContextStatusReg(state.mode);
-
-        // Synchronize flags read, we also do that when it modifies flags as we need the current state.
+        auto generator = getBodyGenerator(instr.decoded.mnemonic);
+        if (!generator)
         {
-            if (instr.flagsRead != 0 || instr.flagsModified != 0)
-            {
-                ar.push(x86::qword_ptr(baseReg, ctxFlagsInfo.offset));
-                ar.popfq();
-            }
+            return StatusCode::invalidInstruction;
         }
 
-        // Handle the instruction
+        // Generate the body of the instruction handler.
+        if (auto res = generator(state, instr); res != StatusCode::success)
         {
-            x86::Instruction newInstr{};
-            newInstr.mnemonic = instr.decoded.mnemonic;
-
-            for (std::size_t i = 0; i < instr.decoded.operand_count_visible; ++i)
-            {
-                const auto& oldOp = instr.operands[i];
-                if (oldOp.type == ZydisOperandType::ZYDIS_OPERAND_TYPE_REGISTER)
-                {
-                    const auto srcReg = Reg{ oldOp.reg.value };
-
-                    const auto remappedReg = getRemappedReg(state, srcReg);
-                    newInstr.operands.push_back(remappedReg);
-                }
-                else if (oldOp.type == ZydisOperandType::ZYDIS_OPERAND_TYPE_MEMORY)
-                {
-                    Mem memOp{};
-                    memOp.bitSize = oldOp.size;
-                    memOp.seg = x86::Seg{ oldOp.mem.segment };
-                    memOp.base = getRemappedReg(state, oldOp.mem.base);
-                    memOp.index = getRemappedReg(state, oldOp.mem.index);
-                    memOp.scale = oldOp.mem.scale;
-                    memOp.disp = oldOp.mem.disp.value;
-
-                    if (oldOp.actions & ZYDIS_OPERAND_ACTION_MASK_READ)
-                    {
-                        // TODO: Handle read memory.
-                    }
-                    else if (oldOp.actions & ZYDIS_OPERAND_ACTION_MASK_WRITE)
-                    {
-                        // TODO: Handle write memory.
-                    }
-                    else
-                    {
-                        // Possible agen.
-                        if (oldOp.mem.type == ZydisMemoryOperandType::ZYDIS_MEMOP_TYPE_AGEN)
-                        {
-                            newInstr.operands.push_back(memOp);
-                        }
-                        else
-                        {
-                            // This should not happen.
-                            assert(false);
-                        }
-                    }
-                }
-                else if (oldOp.type == ZydisOperandType::ZYDIS_OPERAND_TYPE_IMMEDIATE)
-                {
-                    newInstr.operands.push_back(Imm{ oldOp.imm.value.s });
-                }
-            }
-
-            ar.emit(newInstr);
+            assert(false);
+            return res;
         }
-
-        // Synchronize flags output.
-        {
-            if (instr.flagsModified != 0)
-            {
-                const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
-                ar.pushfq();
-                ar.pop(x86::qword_ptr(baseReg, ctxFlagsInfo.offset));
-            }
-        }
-
-        // Update IP.
-        ar.add(x86::qword_ptr(baseReg, ctxIpInfo.offset), Imm(instr.decoded.length));
 
         return StatusCode::success;
     }
