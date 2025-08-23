@@ -336,6 +336,11 @@ namespace zyemu
         static constexpr Reg zmm30{ ZYDIS_REGISTER_ZMM30 };
         static constexpr Reg zmm31{ ZYDIS_REGISTER_ZMM31 };
 
+        // Flags
+        static constexpr Reg flags{ ZYDIS_REGISTER_FLAGS };
+        static constexpr Reg eflags{ ZYDIS_REGISTER_EFLAGS };
+        static constexpr Reg rflags{ ZYDIS_REGISTER_RFLAGS };
+
     } // namespace x86
 
 } // namespace zyemu

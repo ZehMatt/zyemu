@@ -127,6 +127,7 @@ set(zyemu-tests_SOURCES
 	"src/tests/testdata.cpp"
 	"src/tests/testdata.hpp"
 	"src/tests/tests/emulation.cpp"
+	"src/tests/tests/emulation.jcc.cpp"
 	"src/tests/tests/emulation.testdata.cpp"
 	"src/tests/tests/memory.hpp"
 	"src/tests/tests/registers.cpp"

@@ -265,4 +265,34 @@ namespace zyemu
         return StatusCode::success;
     }
 
+    StatusCode CPU::writeMem(std::uint64_t address, std::span<const std::byte> data)
+    {
+        if (state->memWriteHandler == nullptr)
+        {
+            return StatusCode::missingMemoryHandler;
+        }
+
+        if (data.empty())
+        {
+            return StatusCode::success;
+        }
+
+        return state->memWriteHandler(ThreadId::invalid, address, data.data(), data.size(), state->memWriteUserData);
+    }
+
+    StatusCode CPU::readMem(std::uint64_t address, std::span<std::byte> buffer)
+    {
+        if (state->memReadHandler == nullptr)
+        {
+            return StatusCode::missingMemoryHandler;
+        }
+
+        if (buffer.empty())
+        {
+            return StatusCode::success;
+        }
+
+        return state->memReadHandler(ThreadId::invalid, address, buffer.data(), buffer.size(), state->memReadUserData);
+    }
+
 } // namespace zyemu

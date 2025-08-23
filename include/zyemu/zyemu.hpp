@@ -49,6 +49,18 @@ namespace zyemu
         }
 
         StatusCode step(ThreadId tid);
+
+        StatusCode writeMem(std::uint64_t address, std::span<const std::byte> data);
+        StatusCode writeMem(std::uint64_t address, std::span<const std::uint8_t> data)
+        {
+            return writeMem(address, std::span<const std::byte>(reinterpret_cast<const std::byte*>(data.data()), data.size()));
+        }
+
+        StatusCode readMem(std::uint64_t address, std::span<std::byte> buffer);
+        StatusCode readMem(std::uint64_t address, std::span<std::uint8_t> buffer)
+        {
+            return readMem(address, std::span<std::byte>(reinterpret_cast<std::byte*>(buffer.data()), buffer.size()));
+        }
     };
 
 } // namespace zyemu

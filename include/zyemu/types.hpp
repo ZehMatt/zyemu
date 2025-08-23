@@ -35,6 +35,7 @@ namespace zyemu
         invalidRounding,
         invalidMasking,
         invalidBroadcast,
+        missingMemoryHandler,
         labelAlreadyBound,
         bufferTooSmall,
         outOfMemory,

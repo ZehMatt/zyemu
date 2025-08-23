@@ -53,6 +53,13 @@ namespace zyemu::codegen
         }
         else if (op.type == ZydisOperandType::ZYDIS_OPERAND_TYPE_IMMEDIATE)
         {
+            if (op.imm.is_relative)
+            {
+                const auto val = op.imm.value.s + instr.address + instr.decoded.length;
+
+                return { Imm{ val } };
+            }
+
             return { Imm{ op.imm.value.s } };
         }
 
@@ -276,6 +283,45 @@ namespace zyemu::codegen
         return StatusCode::success;
     }
 
+    template<ZydisMnemonic TCmovCond>
+    static StatusCode generateHandlerJcc(GeneratorState& state, const DecodedInstruction& instr)
+    {
+        auto& ar = state.assembler;
+
+        // Commonly accessed registers.
+        const auto baseReg = state.regCtx;
+        const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
+        const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
+        const auto ctxStatusReg = getContextStatusReg(state.mode);
+        const auto regStatus = state.regStatus;
+        const auto regTemp = state.regTemp;
+
+        const auto targetAddr = loadOperand(state, instr, 0);
+        if (targetAddr.hasError())
+        {
+            return targetAddr.getError();
+        }
+
+        // Load current flags.
+        loadReadFlags(state, instr);
+
+        // Update IP.
+        ar.mov(regTemp, x86::qword_ptr(baseReg, ctxIpInfo.offset));
+        ar.lea(regTemp, x86::qword_ptr(regTemp, instr.decoded.length));
+
+        // Abusing regStatus for target address.
+        ar.mov(regStatus, *targetAddr);
+
+        ar.emit(TCmovCond, regTemp, regStatus);
+
+        ar.mov(x86::qword_ptr(baseReg, ctxIpInfo.offset), regTemp);
+
+        // Status.
+        ar.mov(regStatus, Imm(StatusCode::success));
+
+        return StatusCode::success;
+    }
+
     static constexpr auto kBodyHandlers = std::invoke([]() {
         //
         std::array<BodyGeneratorHandler, ZYDIS_MNEMONIC_MAX_VALUE> handlers{};
@@ -286,6 +332,33 @@ namespace zyemu::codegen
         // Specific handlers.
         handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_DIV)] = generateHandlerDiv;
         handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_IDIV)] = generateHandlerIdiv;
+
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JZ)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVZ>;
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNZ)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNZ>;
+
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JO)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVO>;
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNO)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNO>;
+
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JB)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVB>;
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNB)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNB>;
+
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JZ)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVZ>;
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNZ)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNZ>;
+
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JBE)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVBE>;
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNBE)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNBE>;
+
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JS)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVS>;
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNS)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNS>;
+
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JP)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVP>;
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNP)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNP>;
+
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JL)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVL>;
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNL)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNL>;
+
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JLE)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVLE>;
+        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNLE)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNLE>;
 
         return handlers;
     });

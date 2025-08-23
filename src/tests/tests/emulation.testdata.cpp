@@ -171,7 +171,7 @@ namespace zyemu::tests
     };
 
     // clang-format off
-#if 0
+#ifdef _DEBUG
     static const std::vector<std::string> allTestFiles = {
         //"testdata/shld.txt",
         //"testdata/mul.txt",
