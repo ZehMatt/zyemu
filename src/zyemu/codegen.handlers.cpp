@@ -329,36 +329,40 @@ namespace zyemu::codegen
         // By default we use the generic handler.
         std::ranges::fill(handlers, generateHandlerGeneric);
 
+        const auto assignHandler = [&](ZydisMnemonic mnemonic, BodyGeneratorHandler handler) {
+            handlers[static_cast<std::size_t>(mnemonic)] = handler;
+        };
+
         // Specific handlers.
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_DIV)] = generateHandlerDiv;
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_IDIV)] = generateHandlerIdiv;
+        assignHandler(ZYDIS_MNEMONIC_DIV, generateHandlerDiv);
+        assignHandler(ZYDIS_MNEMONIC_IDIV, generateHandlerIdiv);
 
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JZ)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVZ>;
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNZ)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNZ>;
+        assignHandler(ZYDIS_MNEMONIC_JZ, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVZ>);
+        assignHandler(ZYDIS_MNEMONIC_JNZ, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNZ>);
 
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JO)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVO>;
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNO)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNO>;
+        assignHandler(ZYDIS_MNEMONIC_JO, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVO>);
+        assignHandler(ZYDIS_MNEMONIC_JNO, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNO>);
 
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JB)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVB>;
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNB)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNB>;
+        assignHandler(ZYDIS_MNEMONIC_JB, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVB>);
+        assignHandler(ZYDIS_MNEMONIC_JNB, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNB>);
 
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JZ)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVZ>;
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNZ)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNZ>;
+        assignHandler(ZYDIS_MNEMONIC_JZ, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVZ>);
+        assignHandler(ZYDIS_MNEMONIC_JNZ, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNZ>);
 
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JBE)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVBE>;
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNBE)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNBE>;
+        assignHandler(ZYDIS_MNEMONIC_JBE, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVBE>);
+        assignHandler(ZYDIS_MNEMONIC_JNBE, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNBE>);
 
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JS)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVS>;
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNS)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNS>;
+        assignHandler(ZYDIS_MNEMONIC_JS, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVS>);
+        assignHandler(ZYDIS_MNEMONIC_JNS, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNS>);
 
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JP)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVP>;
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNP)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNP>;
+        assignHandler(ZYDIS_MNEMONIC_JP, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVP>);
+        assignHandler(ZYDIS_MNEMONIC_JNP, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNP>);
 
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JL)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVL>;
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNL)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNL>;
+        assignHandler(ZYDIS_MNEMONIC_JL, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVL>);
+        assignHandler(ZYDIS_MNEMONIC_JNL, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNL>);
 
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JLE)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVLE>;
-        handlers[static_cast<std::size_t>(ZYDIS_MNEMONIC_JNLE)] = generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNLE>;
+        assignHandler(ZYDIS_MNEMONIC_JLE, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVLE>);
+        assignHandler(ZYDIS_MNEMONIC_JNLE, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNLE>);
 
         return handlers;
     });
