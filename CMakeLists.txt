@@ -48,6 +48,7 @@ set(zyemu_SOURCES
 	"src/zyemu/codecache.cpp"
 	"src/zyemu/codecache.hpp"
 	"src/zyemu/codegen.cpp"
+	"src/zyemu/codegen.data.hpp"
 	"src/zyemu/codegen.handlers.cpp"
 	"src/zyemu/codegen.hpp"
 	"src/zyemu/cpu.cpp"

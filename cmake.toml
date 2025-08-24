@@ -28,6 +28,7 @@ headers = [
     "src/zyemu/assembler.types.hpp",
     "src/zyemu/codecache.hpp",
     "src/zyemu/codegen.hpp",
+    "src/zyemu/codegen.data.hpp",
     "src/zyemu/cpu.memory.hpp",
     "src/zyemu/internal.hpp",
     "src/zyemu/platform.hpp",

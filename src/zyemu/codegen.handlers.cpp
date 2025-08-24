@@ -1,6 +1,7 @@
 #include "codegen.hpp"
 
 #include "assembler.hpp"
+#include "codegen.data.hpp"
 #include "cpu.memory.hpp"
 #include "thread.hpp"
 
@@ -9,8 +10,116 @@
 
 namespace zyemu::codegen
 {
-    // using MemoryHandler = StatusCode(ZYEMU_FASTCALL*)(ThreadId tid, uint64_t address, void* buffer, size_t length, void*
-    // userData);
+    static void loadReadFlags(GeneratorState& state, const DecodedInstruction& instr)
+    {
+        if (instr.flagsRead == 0 && instr.flagsModified == 0)
+            return;
+
+        auto& ar = state.assembler;
+        const auto baseReg = state.regCtx;
+
+        const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
+        ar.push(x86::qword_ptr(baseReg, ctxFlagsInfo.offset));
+        ar.popfq();
+    }
+
+    static void storeModifiedFlags(GeneratorState& state, const DecodedInstruction& instr)
+    {
+        if (instr.flagsModified == 0)
+            return;
+
+        auto& ar = state.assembler;
+        const auto baseReg = state.regCtx;
+
+        const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
+        ar.pushfq();
+        ar.pop(x86::qword_ptr(baseReg, ctxFlagsInfo.offset));
+    }
+
+    static void saveGPRegIfRequired(GeneratorState& state, Reg reg, sfl::static_vector<Reg, 8>& savedRegs)
+    {
+        if (!state.usedGpRegs.contains(reg))
+        {
+            return;
+        }
+
+        if (!std::ranges::contains(kVolatileGpRegs64, reg))
+        {
+            return;
+        }
+
+        auto& ar = state.assembler;
+        ar.push(reg);
+
+        savedRegs.push_back(reg);
+    }
+
+    static StatusCode handleMemoryWrites(GeneratorState& state, const DecodedInstruction& instr)
+    {
+        auto& ar = state.assembler;
+
+        const auto regFrame = state.regStackFrame;
+
+        for (const auto& [regSrc, memDst] : state.memWrites)
+        {
+            // Write value into memory buffer.
+            if (regSrc.isGpFamily())
+            {
+                ar.mov(x86::ptr(memDst.bitSize, state.regStackFrame, state.memoryRWArea), regSrc);
+            }
+            else
+            {
+                assert(false);
+            }
+
+            if (state.regStatus != x86::rax)
+            {
+                ar.push(x86::rax);
+            }
+
+            sfl::static_vector<Reg, 8> savedGPRegs;
+
+            saveGPRegIfRequired(state, x86::rcx, savedGPRegs);
+            saveGPRegIfRequired(state, x86::rdx, savedGPRegs);
+            saveGPRegIfRequired(state, x86::r8, savedGPRegs);
+            saveGPRegIfRequired(state, x86::r9, savedGPRegs);
+            saveGPRegIfRequired(state, state.regCtx, savedGPRegs);
+            saveGPRegIfRequired(state, state.regStackFrame, savedGPRegs);
+
+            // Address
+            ar.lea(x86::rdx, memDst);
+            // Buffer
+            ar.lea(x86::r8, x86::qword_ptr(regFrame, state.memoryRWArea));
+            // Context.
+            ar.mov(x86::rcx, state.regCtx);
+            // Bit size.
+            ar.mov(x86::r9, Imm(memDst.bitSize / 8));
+
+            // Call.
+            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -128));
+            ar.mov(state.regTemp, Imm(&memory::write));
+            ar.call(state.regTemp);
+            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, 128));
+
+            // Restore.
+            for (const auto& reg : std::ranges::reverse_view(savedGPRegs))
+            {
+                ar.pop(reg);
+            }
+
+            if (state.regStatus != x86::rax)
+            {
+                ar.mov(state.regStatus, x86::rax);
+                ar.pop(x86::rax);
+            }
+
+            // Error handling.
+            ar.test(state.regStatus, state.regStatus);
+            ar.jnz(state.lblExit); // If status is not zero exit.
+        }
+
+        return StatusCode::success;
+    }
 
     static Result<Operand> loadOperand(GeneratorState& state, const DecodedInstruction& instr, size_t operandIdx)
     {
@@ -37,64 +146,82 @@ namespace zyemu::codegen
 
             if (op.actions & ZYDIS_OPERAND_ACTION_MASK_READ)
             {
-                ar.push(x86::rax);
+                if (state.regStatus != x86::rax)
+                {
+                    ar.push(x86::rax);
+                }
 
-                // TODO: See which registers actually need to be saved.
-                ar.push(x86::rcx);
-                ar.push(x86::rdx);
-                ar.push(x86::r8);
-                ar.push(x86::r9);
-                ar.push(state.regCtx);
-                ar.push(state.regStackFrame);
+                sfl::static_vector<Reg, 8> savedGPRegs;
 
-                const auto ctxTID = getContextTID(state.mode);
+                saveGPRegIfRequired(state, x86::rcx, savedGPRegs);
+                saveGPRegIfRequired(state, x86::rdx, savedGPRegs);
+                saveGPRegIfRequired(state, x86::r8, savedGPRegs);
+                saveGPRegIfRequired(state, x86::r9, savedGPRegs);
+                saveGPRegIfRequired(state, state.regCtx, savedGPRegs);
+                saveGPRegIfRequired(state, state.regStackFrame, savedGPRegs);
+
                 const auto regFrame = state.regStackFrame;
 
-                // 1. ThreadContext.
-                ar.push(state.regCtx);
-                // 2. Address
-                ar.lea(x86::rax, memOpSrc);
-                ar.push(x86::rax);
-                // 3. Buffer
-                ar.lea(x86::rax, x86::qword_ptr(regFrame, state.memoryRWArea));
-                ar.push(x86::rax);
-                // 4. Bit size.
-                ar.mov(x86::rax, Imm(memOpSrc.bitSize));
-                ar.push(x86::rax);
-
-                // Pop registers in correct order.
-                ar.pop(x86::r9);
-                ar.pop(x86::r8);
-                ar.pop(x86::rdx);
-                ar.pop(x86::rcx);
+                // Address
+                ar.lea(x86::rdx, memOpSrc);
+                // Buffer
+                ar.lea(x86::r8, x86::qword_ptr(regFrame, state.memoryRWArea));
+                // Context.
+                ar.mov(x86::rcx, state.regCtx);
+                // Bit size.
+                ar.mov(x86::r9, Imm(memOpSrc.bitSize / 8));
 
                 // Call.
                 ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -128));
-                ar.mov(x86::rax, Imm(&memory::read));
-                ar.call(x86::rax);
+                ar.mov(state.regTemp, Imm(&memory::read));
+                ar.call(state.regTemp);
                 ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, 128));
 
                 // Restore.
-                ar.pop(state.regStackFrame);
-                ar.pop(state.regCtx);
-                ar.pop(x86::r9);
-                ar.pop(x86::r8);
-                ar.pop(x86::rdx);
-                ar.pop(x86::rcx);
+                for (const auto& reg : std::ranges::reverse_view(savedGPRegs))
+                {
+                    ar.pop(reg);
+                }
 
-                ar.mov(state.regStatus, x86::rax);
-                ar.pop(x86::rax);
+                if (state.regStatus != x86::rax)
+                {
+                    ar.mov(state.regStatus, x86::rax);
+                    ar.pop(x86::rax);
+                }
 
                 // Error handling.
                 ar.test(state.regStatus, state.regStatus);
                 ar.jnz(state.lblExit); // If status is not zero exit.
 
-                Mem memSrc{};
-                memSrc.base = regFrame;
-                memSrc.disp = state.memoryRWArea;
-                memSrc.bitSize = memOpSrc.bitSize;
+                if (op.actions & ZYDIS_OPERAND_ACTION_MASK_WRITE)
+                {
+                    // Substitute memory operand with a register and defer the write.
+                    const auto regSubstitute = state.memRegs[operandIdx];
+                    const auto opReg = x86::changeRegSize(regSubstitute, op.size);
 
-                return { memSrc };
+                    // Write value into register from memory.
+                    if (opReg.isGpFamily())
+                    {
+                        ar.mov(opReg, x86::ptr(memOpSrc.bitSize, regFrame, state.memoryRWArea));
+                    }
+                    else
+                    {
+                        assert(false);
+                    }
+
+                    state.memWrites.emplace_back(opReg, memOpSrc);
+
+                    return { opReg };
+                }
+                else
+                {
+                    Mem memSrc{};
+                    memSrc.base = regFrame;
+                    memSrc.disp = state.memoryRWArea;
+                    memSrc.bitSize = memOpSrc.bitSize;
+
+                    return { memSrc };
+                }
             }
             else if (op.actions & ZYDIS_OPERAND_ACTION_MASK_WRITE)
             {
@@ -134,100 +261,6 @@ namespace zyemu::codegen
 
         assert(false); // Unsupported operand type.
         return StatusCode::invalidOperation;
-    }
-
-    static StatusCode handleMemoryWrites(GeneratorState& state, const DecodedInstruction& instr)
-    {
-        auto& ar = state.assembler;
-
-        for (const auto& [regSrc, memDst] : state.memWrites)
-        {
-            // Write value into memory buffer.
-            if (regSrc.isGpFamily())
-            {
-                ar.mov(x86::ptr(memDst.bitSize, state.regStackFrame, state.memoryRWArea), regSrc);
-            }
-
-            ar.push(x86::rax);
-
-            // TODO: See which registers actually need to be saved.
-            ar.push(x86::rcx);
-            ar.push(x86::rdx);
-            ar.push(x86::r8);
-            ar.push(x86::r9);
-            ar.push(state.regCtx);
-            ar.push(state.regStackFrame);
-
-            const auto ctxTID = getContextTID(state.mode);
-            const auto regFrame = state.regStackFrame;
-
-            // 1. ThreadContext.
-            ar.push(state.regCtx);
-            // 2. Address
-            ar.lea(x86::rax, memDst);
-            ar.push(x86::rax);
-            // 3. Buffer
-            ar.lea(x86::rax, x86::qword_ptr(regFrame, state.memoryRWArea));
-            ar.push(x86::rax);
-            // 4. Bit size.
-            ar.mov(x86::rax, Imm(memDst.bitSize));
-            ar.push(x86::rax);
-
-            // Pop registers in correct order.
-            ar.pop(x86::r9);
-            ar.pop(x86::r8);
-            ar.pop(x86::rdx);
-            ar.pop(x86::rcx);
-
-            // Call.
-            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -128));
-            ar.mov(x86::rax, Imm(&memory::write));
-            ar.call(x86::rax);
-            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, 128));
-
-            // Restore.
-            ar.pop(state.regStackFrame);
-            ar.pop(state.regCtx);
-            ar.pop(x86::r9);
-            ar.pop(x86::r8);
-            ar.pop(x86::rdx);
-            ar.pop(x86::rcx);
-
-            ar.mov(state.regStatus, x86::rax);
-            ar.pop(x86::rax);
-
-            // Error handling.
-            ar.test(state.regStatus, state.regStatus);
-            ar.jnz(state.lblExit); // If status is not zero exit.
-        }
-
-        return StatusCode::success;
-    }
-
-    static void loadReadFlags(GeneratorState& state, const DecodedInstruction& instr)
-    {
-        if (instr.flagsRead == 0 && instr.flagsModified == 0)
-            return;
-
-        auto& ar = state.assembler;
-        const auto baseReg = state.regCtx;
-
-        const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
-        ar.push(x86::qword_ptr(baseReg, ctxFlagsInfo.offset));
-        ar.popfq();
-    }
-
-    static void storeModifiedFlags(GeneratorState& state, const DecodedInstruction& instr)
-    {
-        if (instr.flagsModified == 0)
-            return;
-
-        auto& ar = state.assembler;
-        const auto baseReg = state.regCtx;
-
-        const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
-        ar.pushfq();
-        ar.pop(x86::qword_ptr(baseReg, ctxFlagsInfo.offset));
     }
 
     static StatusCode generateHandlerGeneric(GeneratorState& state, const DecodedInstruction& instr)
