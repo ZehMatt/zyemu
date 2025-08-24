@@ -89,27 +89,6 @@ namespace zyemu::codegen
         x86::zmm8, x86::zmm9, x86::zmm10, x86::zmm11, x86::zmm12, x86::zmm13, x86::zmm14, x86::zmm15,
     };
 
-    struct FastCallInfoWin64
-    {
-        static constexpr Reg gpArg0 = x86::rcx;
-        static constexpr Reg gpArg1 = x86::rdx;
-        static constexpr Reg gpArg2 = x86::r8;
-        static constexpr Reg gpArg3 = x86::r9;
-        static constexpr Reg xmmArg0 = x86::xmm0;
-        static constexpr Reg xmmArg1 = x86::xmm1;
-        static constexpr Reg xmmArg2 = x86::xmm2;
-        static constexpr Reg xmmArg3 = x86::xmm3;
-    };
-
-    struct FastCallInfoWin32
-    {
-        static constexpr Reg gpArg0 = x86::ecx;
-        static constexpr Reg gpArg1 = x86::edx;
-    };
-
-    // FIXME: This must match the host platform.
-    using FastCallInfo = FastCallInfoWin64;
-
     static bool isAddressableReg(ZydisRegister reg)
     {
         switch (reg)
@@ -465,6 +444,55 @@ namespace zyemu::codegen
             }
         }
 
+        // Allocate registers for memory operations.
+        for (std::size_t i = 0; i < instr.decoded.operand_count; ++i)
+        {
+            const auto& op = instr.operands[i];
+            if (op.type == ZYDIS_OPERAND_TYPE_MEMORY)
+            {
+                if (op.actions & ZYDIS_OPERAND_ACTION_MASK_WRITE)
+                {
+                    if (instr.operandKind[i] == OperandKind::Gp)
+                    {
+                        if (auto reg = allocateGpReg(state); reg.hasError())
+                        {
+                            return reg.getError();
+                        }
+                        else
+                        {
+                            state.memRegs[i] = *reg;
+                        }
+                    }
+                    else if (instr.operandKind[i] == OperandKind::Simd)
+                    {
+                        if (auto reg = allocateSimdReg(state); reg.hasError())
+                        {
+                            return reg.getError();
+                        }
+                        else
+                        {
+                            state.memRegs[i] = *reg;
+                        }
+                    }
+                    else if (instr.operandKind[i] == OperandKind::Mmx)
+                    {
+                        if (auto reg = allocateMmxReg(state); reg.hasError())
+                        {
+                            return reg.getError();
+                        }
+                        else
+                        {
+                            state.memRegs[i] = *reg;
+                        }
+                    }
+                    else
+                    {
+                        assert(false); // Unsupported memory operand type.
+                    }
+                }
+            }
+        }
+
         // Select register for status.
         if (auto regStatus = allocateGpReg(state, x86::rax); regStatus.hasError())
         {
@@ -777,6 +805,55 @@ namespace zyemu::codegen
                     instr.operands[0].actions |= ZYDIS_OPERAND_ACTION_READ;
                 }
                 break;
+            }
+        }
+
+        // This heuristic kind of sucks but we require to know what register must be used to substitute the memory operand.
+        {
+            OperandKind usedOperandKind = OperandKind::Invalid;
+            for (std::size_t i = 0; i < instr.decoded.operand_count; ++i)
+            {
+                const auto& op = instr.operands[i];
+                if (op.type == ZYDIS_OPERAND_TYPE_REGISTER)
+                {
+                    if (!isAddressableReg(op.reg.value))
+                    {
+                        instr.operandKind[i] = OperandKind::Invalid;
+                        continue;
+                    }
+
+                    const auto regClass = ZydisRegisterGetClass(op.reg.value);
+                    switch (regClass)
+                    {
+                        case ZYDIS_REGCLASS_GPR8:
+                        case ZYDIS_REGCLASS_GPR16:
+                        case ZYDIS_REGCLASS_GPR32:
+                        case ZYDIS_REGCLASS_GPR64:
+                            usedOperandKind = instr.operandKind[i] = OperandKind::Gp;
+                            break;
+                        case ZYDIS_REGCLASS_MMX:
+                            usedOperandKind = instr.operandKind[i] = OperandKind::Mmx;
+                            break;
+                        case ZYDIS_REGCLASS_XMM:
+                        case ZYDIS_REGCLASS_YMM:
+                        case ZYDIS_REGCLASS_ZMM:
+                            usedOperandKind = instr.operandKind[i] = OperandKind::Simd;
+                            break;
+                        case ZYDIS_REGCLASS_X87:
+                            usedOperandKind = instr.operandKind[i] = OperandKind::X87;
+                            break;
+                    }
+                }
+            }
+
+            // Handle memory operands.
+            for (std::size_t i = 0; i < instr.decoded.operand_count; ++i)
+            {
+                const auto& op = instr.operands[i];
+                if (op.type == ZYDIS_OPERAND_TYPE_MEMORY)
+                {
+                    instr.operandKind[i] = usedOperandKind;
+                }
             }
         }
 

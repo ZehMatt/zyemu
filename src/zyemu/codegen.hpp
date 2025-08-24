@@ -46,6 +46,20 @@ namespace zyemu::codegen
 
         // Remapped memory to register operand.
         std::array<Reg, ZYDIS_MAX_OPERAND_COUNT> memRegs{};
+
+        sfl::static_vector<std::pair<Reg, Mem>, 2> memWrites{};
+    };
+
+    enum class OperandKind
+    {
+        Invalid,
+        Gp,
+        Simd,
+        Mmx,
+        Mm,
+        X87,
+        Flags,
+        Mask,
     };
 
     struct DecodedInstruction
@@ -53,6 +67,7 @@ namespace zyemu::codegen
         std::uint64_t address{};
         ZydisDecodedInstruction decoded{};
         ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT]{};
+        OperandKind operandKind[ZYDIS_MAX_OPERAND_COUNT]{};
         RegSet regsRead{};
         RegSet regsModified{};
         RegSet regsUsed{};

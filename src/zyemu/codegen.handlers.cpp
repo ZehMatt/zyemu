@@ -98,7 +98,13 @@ namespace zyemu::codegen
             }
             else if (op.actions & ZYDIS_OPERAND_ACTION_MASK_WRITE)
             {
-                // TODO: Handle write memory.
+                // Substitute memory operand with a register and defer the write.
+                const auto regSubstitute = state.memRegs[operandIdx];
+                const auto opReg = x86::changeRegSize(regSubstitute, op.size);
+
+                state.memWrites.emplace_back(opReg, memOpSrc);
+
+                return { opReg };
             }
             else
             {
@@ -128,6 +134,74 @@ namespace zyemu::codegen
 
         assert(false); // Unsupported operand type.
         return StatusCode::invalidOperation;
+    }
+
+    static StatusCode handleMemoryWrites(GeneratorState& state, const DecodedInstruction& instr)
+    {
+        auto& ar = state.assembler;
+
+        for (const auto& [regSrc, memDst] : state.memWrites)
+        {
+            // Write value into memory buffer.
+            if (regSrc.isGpFamily())
+            {
+                ar.mov(x86::ptr(memDst.bitSize, state.regStackFrame, state.memoryRWArea), regSrc);
+            }
+
+            ar.push(x86::rax);
+
+            // TODO: See which registers actually need to be saved.
+            ar.push(x86::rcx);
+            ar.push(x86::rdx);
+            ar.push(x86::r8);
+            ar.push(x86::r9);
+            ar.push(state.regCtx);
+            ar.push(state.regStackFrame);
+
+            const auto ctxTID = getContextTID(state.mode);
+            const auto regFrame = state.regStackFrame;
+
+            // 1. ThreadContext.
+            ar.push(state.regCtx);
+            // 2. Address
+            ar.lea(x86::rax, memDst);
+            ar.push(x86::rax);
+            // 3. Buffer
+            ar.lea(x86::rax, x86::qword_ptr(regFrame, state.memoryRWArea));
+            ar.push(x86::rax);
+            // 4. Bit size.
+            ar.mov(x86::rax, Imm(memDst.bitSize));
+            ar.push(x86::rax);
+
+            // Pop registers in correct order.
+            ar.pop(x86::r9);
+            ar.pop(x86::r8);
+            ar.pop(x86::rdx);
+            ar.pop(x86::rcx);
+
+            // Call.
+            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -128));
+            ar.mov(x86::rax, Imm(&memory::write));
+            ar.call(x86::rax);
+            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, 128));
+
+            // Restore.
+            ar.pop(state.regStackFrame);
+            ar.pop(state.regCtx);
+            ar.pop(x86::r9);
+            ar.pop(x86::r8);
+            ar.pop(x86::rdx);
+            ar.pop(x86::rcx);
+
+            ar.mov(state.regStatus, x86::rax);
+            ar.pop(x86::rax);
+
+            // Error handling.
+            ar.test(state.regStatus, state.regStatus);
+            ar.jnz(state.lblExit); // If status is not zero exit.
+        }
+
+        return StatusCode::success;
     }
 
     static void loadReadFlags(GeneratorState& state, const DecodedInstruction& instr)
@@ -189,6 +263,11 @@ namespace zyemu::codegen
             }
 
             ar.emit(newInstr);
+        }
+
+        if (auto status = handleMemoryWrites(state, instr); status != StatusCode::success)
+        {
+            return status;
         }
 
         // Synchronize flags output.

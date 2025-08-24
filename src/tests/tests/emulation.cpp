@@ -75,7 +75,6 @@ namespace zyemu::tests
         ASSERT_EQ(rax, 0);
     }
 
-#if 0
     TEST(EmulationTests, testMemoryWrite)
     {
         constexpr std::uint8_t kTestShellCode[] = {
@@ -117,6 +116,6 @@ namespace zyemu::tests
 
         ASSERT_EQ(stackValue, testValue);
     }
-#endif
+
 
 } // namespace zyemu::tests
