@@ -38,8 +38,14 @@ namespace zyemu::codegen
         RegSet regsIn{};
         RegSet regsOut{};
 
+        // Offset of memory spill area, right after saved non-volatile registers.
+        std::int32_t memoryRWArea{};
+
         // Mapping from instruction to host.
         sfl::static_flat_map<Reg, Reg, 8> regRemap{};
+
+        // Remapped memory to register operand.
+        std::array<Reg, ZYDIS_MAX_OPERAND_COUNT> memRegs{};
     };
 
     struct DecodedInstruction

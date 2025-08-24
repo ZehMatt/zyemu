@@ -51,6 +51,8 @@ set(zyemu_SOURCES
 	"src/zyemu/codegen.handlers.cpp"
 	"src/zyemu/codegen.hpp"
 	"src/zyemu/cpu.cpp"
+	"src/zyemu/cpu.memory.cpp"
+	"src/zyemu/cpu.memory.hpp"
 	"src/zyemu/internal.hpp"
 	"src/zyemu/platform.cpp"
 	"src/zyemu/platform.hpp"

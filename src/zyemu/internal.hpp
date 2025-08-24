@@ -61,7 +61,7 @@ namespace zyemu
             std::byte* data{};
         };
 
-        using CodeCacheFunc = StatusCode (*)(ThreadContext* th);
+        using CodeCacheFunc = StatusCode (ZYEMU_FASTCALL*)(ThreadContext* th);
 
         struct CacheEntry
         {

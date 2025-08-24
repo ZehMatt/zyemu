@@ -17,6 +17,10 @@ namespace zyemu
             : value{}
         {
         }
+        Imm(const void* ptr) noexcept
+            : value{ reinterpret_cast<std::int64_t>(ptr) }
+        {
+        }
         constexpr Imm(std::uint32_t imm) noexcept
             : value{ static_cast<std::int32_t>(imm) }
         {

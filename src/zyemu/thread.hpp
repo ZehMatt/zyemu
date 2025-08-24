@@ -45,6 +45,19 @@ namespace zyemu
         };
     }
 
+    inline RegInfo getContextTID([[maybe_unused]] ZydisMachineMode mode)
+    {
+        constexpr std::uint16_t byteSize = static_cast<std::uint16_t>(sizeof(ThreadId));
+        constexpr std::uint16_t regOffset = offsetof(detail::ThreadContext, tid);
+        constexpr std::uint16_t regSize = byteSize * 8U; // Convert to bits.
+        return RegInfo{
+            .offset = regOffset,
+            .bitSize = regSize,
+            .base = regOffset,
+            .largeBitSize = regSize,
+        };
+    }
+
     inline RegInfo getContextRegInfo(ZydisMachineMode mode, ZydisRegister reg)
     {
         const std::uint16_t regSize = ZydisRegisterGetWidth(mode, reg);

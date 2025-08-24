@@ -1,6 +1,7 @@
 #include "codegen.hpp"
 
 #include "assembler.hpp"
+#include "cpu.memory.hpp"
 #include "thread.hpp"
 
 #include <array>
@@ -8,8 +9,13 @@
 
 namespace zyemu::codegen
 {
+    // using MemoryHandler = StatusCode(ZYEMU_FASTCALL*)(ThreadId tid, uint64_t address, void* buffer, size_t length, void*
+    // userData);
+
     static Result<Operand> loadOperand(GeneratorState& state, const DecodedInstruction& instr, size_t operandIdx)
     {
+        auto& ar = state.assembler;
+
         const auto& op = instr.operands[operandIdx];
 
         if (op.type == ZydisOperandType::ZYDIS_OPERAND_TYPE_REGISTER)
@@ -21,17 +27,74 @@ namespace zyemu::codegen
         }
         else if (op.type == ZydisOperandType::ZYDIS_OPERAND_TYPE_MEMORY)
         {
-            Mem memOp{};
-            memOp.bitSize = op.size;
-            memOp.seg = x86::Seg{ op.mem.segment };
-            memOp.base = getRemappedReg(state, op.mem.base);
-            memOp.index = getRemappedReg(state, op.mem.index);
-            memOp.scale = op.mem.scale;
-            memOp.disp = op.mem.disp.value;
+            Mem memOpSrc{};
+            memOpSrc.bitSize = op.size;
+            memOpSrc.seg = x86::Seg{ op.mem.segment };
+            memOpSrc.base = getRemappedReg(state, op.mem.base);
+            memOpSrc.index = getRemappedReg(state, op.mem.index);
+            memOpSrc.scale = op.mem.scale;
+            memOpSrc.disp = op.mem.disp.value;
 
             if (op.actions & ZYDIS_OPERAND_ACTION_MASK_READ)
             {
-                // TODO: Handle read memory.
+                ar.push(x86::rax);
+
+                // TODO: See which registers actually need to be saved.
+                ar.push(x86::rcx);
+                ar.push(x86::rdx);
+                ar.push(x86::r8);
+                ar.push(x86::r9);
+                ar.push(state.regCtx);
+                ar.push(state.regStackFrame);
+
+                const auto ctxTID = getContextTID(state.mode);
+                const auto regFrame = state.regStackFrame;
+
+                // 1. ThreadContext.
+                ar.push(state.regCtx);
+                // 2. Address
+                ar.lea(x86::rax, memOpSrc);
+                ar.push(x86::rax);
+                // 3. Buffer
+                ar.lea(x86::rax, x86::qword_ptr(regFrame, state.memoryRWArea));
+                ar.push(x86::rax);
+                // 4. Bit size.
+                ar.mov(x86::rax, Imm(memOpSrc.bitSize));
+                ar.push(x86::rax);
+
+                // Pop registers in correct order.
+                ar.pop(x86::r9);
+                ar.pop(x86::r8);
+                ar.pop(x86::rdx);
+                ar.pop(x86::rcx);
+
+                // Call.
+                ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -128));
+                ar.mov(x86::rax, Imm(&memory::read));
+                ar.call(x86::rax);
+                ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, 128));
+
+                // Restore.
+                ar.pop(state.regStackFrame);
+                ar.pop(state.regCtx);
+                ar.pop(x86::r9);
+                ar.pop(x86::r8);
+                ar.pop(x86::rdx);
+                ar.pop(x86::rcx);
+
+                ar.mov(state.regStatus, x86::rax);
+                ar.pop(x86::rax);
+
+                // Error handling.
+                ar.test(state.regStatus, state.regStatus);
+                ar.jnz(state.lblExit); // If status is not zero exit.
+
+                Mem memSrc{};
+                memSrc.base = regFrame;
+                memSrc.disp = state.memoryRWArea;
+                memSrc.bitSize = memOpSrc.bitSize;
+
+                return { memSrc };
             }
             else if (op.actions & ZYDIS_OPERAND_ACTION_MASK_WRITE)
             {
@@ -42,7 +105,7 @@ namespace zyemu::codegen
                 // Possible agen.
                 if (op.mem.type == ZydisMemoryOperandType::ZYDIS_MEMOP_TYPE_AGEN)
                 {
-                    return { memOp };
+                    return { memOpSrc };
                 }
                 else
                 {

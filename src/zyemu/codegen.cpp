@@ -553,6 +553,9 @@ namespace zyemu::codegen
             }
         }
 
+        // Save the spill area offset.
+        state.memoryRWArea = savedOffset + 16;
+
         // rcx is the parameter holding the context pointer.
         ar.mov(state.regCtx, x86::rcx);
 
@@ -605,8 +608,6 @@ namespace zyemu::codegen
         const auto frameReg = state.regStackFrame;
         const auto ctxStatusReg = getContextStatusReg(state.mode);
 
-        ar.bind(state.lblExit);
-
         // Synchronize remapped registers back into the virtual context.
         for (auto regOut : state.regsOut)
         {
@@ -643,6 +644,8 @@ namespace zyemu::codegen
                 assert(false);
             }
         }
+
+        ar.bind(state.lblExit);
 
         // Move status into eax/rax.
         if (state.regStatus != x86::rax)

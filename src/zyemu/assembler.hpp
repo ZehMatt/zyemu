@@ -75,6 +75,11 @@ namespace zyemu::x86
             return emit(ZYDIS_MNEMONIC_MOV, dst, src);
         }
 
+        template<typename TOp0, typename TOp1> Assembler& xchg(const TOp0& dst, const TOp1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_XCHG, dst, src);
+        }
+
         Assembler& movd(const Reg& dst, const Reg& src)
         {
             return emit(ZYDIS_MNEMONIC_MOVD, dst, src);

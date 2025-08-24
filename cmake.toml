@@ -16,6 +16,7 @@ sources = [
     "src/zyemu/codegen.cpp",
     "src/zyemu/codegen.handlers.cpp",
     "src/zyemu/cpu.cpp",
+    "src/zyemu/cpu.memory.cpp",
     "src/zyemu/platform.cpp",
     "src/zyemu/thread.cpp",
 ]
@@ -27,6 +28,7 @@ headers = [
     "src/zyemu/assembler.types.hpp",
     "src/zyemu/codecache.hpp",
     "src/zyemu/codegen.hpp",
+    "src/zyemu/cpu.memory.hpp",
     "src/zyemu/internal.hpp",
     "src/zyemu/platform.hpp",
     "src/zyemu/thread.hpp",
