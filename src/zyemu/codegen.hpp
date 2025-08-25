@@ -20,6 +20,7 @@ namespace zyemu::codegen
         x86::Assembler assembler;
         Label lblPrologue{};
         Label lblExit{};
+        Label lblExitFailure{};
 
         Reg regCtx{};
         Reg regStackFrame{};
@@ -37,6 +38,12 @@ namespace zyemu::codegen
         // Registers as largest used by the instruction.
         RegSet regsIn{};
         RegSet regsOut{};
+
+        // Size of stack frame.
+        std::int32_t stackFrameSize{};
+
+        // Offset in stack where volatile regs are saved.
+        std::int32_t volatileRegArea{};
 
         // Offset of memory spill area, right after saved non-volatile registers.
         std::int32_t memoryRWArea{};

@@ -265,6 +265,7 @@ namespace zyemu::codegen
         state.mode = instr.decoded.machine_mode;
         state.lblPrologue = state.assembler.createLabel();
         state.lblExit = state.assembler.createLabel();
+        state.lblExitFailure = state.assembler.createLabel();
 
         if (auto res = initFreeRegs(state); res != StatusCode::success)
         {
@@ -273,7 +274,7 @@ namespace zyemu::codegen
 
         // Allocate the context register.
         {
-            if (auto reg = allocateGpReg(state, x86::r10); reg.hasError())
+            if (auto reg = allocateGpReg(state, x86::r12); reg.hasError())
             {
                 return reg.getError();
             }
@@ -285,7 +286,7 @@ namespace zyemu::codegen
 
         // Allocate the frame register.
         {
-            if (auto reg = allocateGpReg(state, x86::r11); reg.hasError())
+            if (auto reg = allocateGpReg(state, x86::r13); reg.hasError())
             {
                 return reg.getError();
             }
@@ -418,7 +419,7 @@ namespace zyemu::codegen
         }
 
         // Allocate a temporary register.
-        if (auto regTemp = allocateGpReg(state, x86::r12); regTemp.hasError())
+        if (auto regTemp = allocateGpReg(state, x86::r14); regTemp.hasError())
         {
             return regTemp.getError();
         }
@@ -456,16 +457,20 @@ namespace zyemu::codegen
         const auto baseReg = state.regCtx;
         const auto frameReg = state.regStackFrame;
 
+        state.stackFrameSize = 256;
+
         // Home area prologue.
         ar.bind(state.lblPrologue);
 
         // Setup stack frame.
         ar.push(frameReg);
-        ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -120));
+        ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -state.stackFrameSize));
         ar.mov(frameReg, x86::rsp); // Save the stack frame pointer.
 
         // Save non-volatile GP registers.
-        std::int32_t savedOffset = 0;
+        state.volatileRegArea = 64;
+
+        std::int32_t savedOffset = state.volatileRegArea;
         for (const auto reg : state.usedGpRegs)
         {
             if (std::ranges::contains(kNonVolatileGpRegs64, reg))
@@ -550,6 +555,8 @@ namespace zyemu::codegen
         const auto frameReg = state.regStackFrame;
         const auto ctxStatusReg = getContextStatusReg(state.mode);
 
+        ar.bind(state.lblExit);
+
         // Synchronize remapped registers back into the virtual context.
         for (auto regOut : state.regsOut)
         {
@@ -587,7 +594,7 @@ namespace zyemu::codegen
             }
         }
 
-        ar.bind(state.lblExit);
+        ar.bind(state.lblExitFailure);
 
         // Move status into eax/rax.
         if (state.regStatus != x86::rax)
@@ -596,7 +603,7 @@ namespace zyemu::codegen
         }
 
         // Restore non-volatile GP registers.
-        std::int32_t savedOffset = 0;
+        std::int32_t savedOffset = state.volatileRegArea;
         for (const auto reg : state.usedGpRegs)
         {
             if (std::ranges::contains(kNonVolatileGpRegs64, reg))
@@ -626,9 +633,15 @@ namespace zyemu::codegen
             }
         }
 
+        if (instr.flagsModified != 0 || instr.flagsRead != 0)
+        {
+            // This flag must be cleared. We don't use popf if instruction does not use flags in any way.
+            ar.cld();
+        }
+
         // Restore stack frame.
         ar.mov(x86::rsp, frameReg);
-        ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, +120));
+        ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, +state.stackFrameSize));
         ar.pop(frameReg);
 
         ar.ret();

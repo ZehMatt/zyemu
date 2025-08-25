@@ -96,10 +96,10 @@ namespace zyemu::codegen
             ar.mov(x86::r9, Imm(memDst.bitSize / 8));
 
             // Call.
-            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -128));
+            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -32));
             ar.mov(state.regTemp, Imm(&memory::write));
             ar.call(state.regTemp);
-            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, 128));
+            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, 32));
 
             // Restore.
             for (const auto& reg : std::ranges::reverse_view(savedGPRegs))
@@ -115,7 +115,7 @@ namespace zyemu::codegen
 
             // Error handling.
             ar.test(state.regStatus, state.regStatus);
-            ar.jnz(state.lblExit); // If status is not zero exit.
+            ar.jnz(state.lblExitFailure); // If status is not zero exit.
         }
 
         return StatusCode::success;
@@ -172,10 +172,10 @@ namespace zyemu::codegen
                 ar.mov(x86::r9, Imm(memOpSrc.bitSize / 8));
 
                 // Call.
-                ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -128));
+                ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -32));
                 ar.mov(state.regTemp, Imm(&memory::read));
                 ar.call(state.regTemp);
-                ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, 128));
+                ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, 32));
 
                 // Restore.
                 for (const auto& reg : std::ranges::reverse_view(savedGPRegs))
@@ -191,7 +191,7 @@ namespace zyemu::codegen
 
                 // Error handling.
                 ar.test(state.regStatus, state.regStatus);
-                ar.jnz(state.lblExit); // If status is not zero exit.
+                ar.jnz(state.lblExitFailure); // If status is not zero exit.
 
                 if (op.actions & ZYDIS_OPERAND_ACTION_MASK_WRITE)
                 {
@@ -377,11 +377,11 @@ namespace zyemu::codegen
         // Failure path.
         ar.bind(lblDivideByZero);
         ar.mov(state.regStatus, Imm(StatusCode::exceptionIntDivideError));
-        ar.jmp(state.lblExit);
+        ar.jmp(state.lblExitFailure);
 
         ar.bind(lblQuotientTooLarge);
         ar.mov(state.regStatus, Imm(StatusCode::exceptionIntOverflow));
-        ar.jmp(state.lblExit);
+        ar.jmp(state.lblExitFailure);
 
         return StatusCode::success;
     }
@@ -511,9 +511,6 @@ namespace zyemu::codegen
         // Specific handlers.
         assignHandler(ZYDIS_MNEMONIC_DIV, generateHandlerDiv);
         assignHandler(ZYDIS_MNEMONIC_IDIV, generateHandlerIdiv);
-
-        assignHandler(ZYDIS_MNEMONIC_JZ, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVZ>);
-        assignHandler(ZYDIS_MNEMONIC_JNZ, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNZ>);
 
         assignHandler(ZYDIS_MNEMONIC_JO, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVO>);
         assignHandler(ZYDIS_MNEMONIC_JNO, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNO>);

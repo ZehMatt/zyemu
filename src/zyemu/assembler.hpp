@@ -50,6 +50,11 @@ namespace zyemu::x86
             return *this;
         }
 
+        Assembler& cld()
+        {
+            return emit(ZYDIS_MNEMONIC_CLD);
+        }
+
         Assembler& cmp(const Reg& lhs, const Reg& rhs)
         {
             return emit(ZYDIS_MNEMONIC_CMP, lhs, rhs);
