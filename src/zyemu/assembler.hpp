@@ -23,10 +23,34 @@ namespace zyemu::x86
         using Node = std::variant<Instruction, Label>;
 
     private:
-        sfl::small_vector<Node, 64> _nodes;
+        std::int32_t _insertPos{};
         std::int32_t labelId{};
+        sfl::small_vector<Node, 64> _nodes;
 
     public:
+        void setInsertPos(std::int32_t pos)
+        {
+            assert(pos <= _nodes.size());
+            _insertPos = pos;
+        }
+
+        std::int32_t getInsertPos() const
+        {
+            return _insertPos;
+        }
+
+        std::int32_t getNodeCount() const
+        {
+            return static_cast<std::int32_t>(_nodes.size());
+        }
+
+        void clear()
+        {
+            _nodes.clear();
+            _insertPos = 0;
+            labelId = 0;
+        }
+
         Label createLabel()
         {
             return Label{ labelId++ };
@@ -34,25 +58,33 @@ namespace zyemu::x86
 
         Assembler& bind(Label label)
         {
-            _nodes.push_back(label);
+            _nodes.insert(_nodes.begin() + _insertPos, label);
+            _insertPos++;
             return *this;
         }
 
         template<typename... TOperands> Assembler& emit(const Instruction& instr)
         {
-            _nodes.push_back(instr);
+            _nodes.insert(_nodes.begin() + _insertPos, instr);
+            _insertPos++;
             return *this;
         }
 
         template<typename... TOperands> Assembler& emit(ZydisMnemonic mnemonic, TOperands&&... operands)
         {
-            _nodes.push_back(Instruction{ mnemonic, { std::forward<TOperands>(operands)... } });
+            _nodes.insert(_nodes.begin() + _insertPos, Instruction{ mnemonic, { std::forward<TOperands>(operands)... } });
+            _insertPos++;
             return *this;
         }
 
         Assembler& cld()
         {
             return emit(ZYDIS_MNEMONIC_CLD);
+        }
+
+        template<typename TOperand> Assembler& not_(const TOperand& target)
+        {
+            return emit(ZYDIS_MNEMONIC_NOT, target);
         }
 
         Assembler& cmp(const Reg& lhs, const Reg& rhs)
@@ -192,7 +224,7 @@ namespace zyemu::x86
 
         template<typename Op0, typename Op1> Assembler& adc(const Op0& dst, const Op1& src)
         {
-            return emit(ZYDIS_MNEMONIC_ADC, dst);
+            return emit(ZYDIS_MNEMONIC_ADC, dst, src);
         }
 
         template<typename Op0, typename Op1> Assembler& sar(const Op0& dst, const Op1& src)
@@ -213,6 +245,11 @@ namespace zyemu::x86
         template<typename Op0, typename Op1> Assembler& or_(const Op0& dst, const Op1& src)
         {
             return emit(ZYDIS_MNEMONIC_OR, dst, src);
+        }
+
+        template<typename Op0, typename Op1> Assembler& imul(const Op0& dst, const Op1& src, const Imm& imm)
+        {
+            return emit(ZYDIS_MNEMONIC_IMUL, dst, src, imm);
         }
 
         Assembler& jnz(const Label& label)
@@ -253,6 +290,31 @@ namespace zyemu::x86
         Assembler& jae(const Label& label)
         {
             return emit(ZYDIS_MNEMONIC_JNB, label);
+        }
+
+        Assembler& js(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JS, label);
+        }
+
+        Assembler& jl(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JL, label);
+        }
+
+        Assembler& jg(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JNLE, label);
+        }
+
+        template<typename Op0, typename Op1> Assembler& movsx(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVSX, dst, src);
+        }
+
+        template<typename Op0, typename Op1> Assembler& movsxd(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_MOVSXD, dst, src);
         }
 
         Assembler& movzx(const Reg& dst, const Reg& src)

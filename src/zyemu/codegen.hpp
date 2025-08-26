@@ -25,7 +25,6 @@ namespace zyemu::codegen
         Reg regCtx{};
         Reg regStackFrame{};
         Reg regStatus{};
-        Reg regTemp{};
 
         // Register allocation state.
         sfl::static_vector<Reg, 16> freeGpRegs{};
@@ -85,6 +84,9 @@ namespace zyemu::codegen
     using BodyGeneratorHandler = StatusCode (*)(GeneratorState& state, const DecodedInstruction& instr);
 
     Reg getRemappedReg(GeneratorState& state, Reg reg);
+
+    Result<Reg> allocateGpReg(GeneratorState& state, Reg preferredReg = {});
+    Result<Reg> allocateSimdReg(GeneratorState& state, Reg preferredReg = {});
 
     Result<detail::CodeCacheFunc> generate(
         detail::CPUState* state, std::uint64_t rip, const detail::InstructionData& instrData);

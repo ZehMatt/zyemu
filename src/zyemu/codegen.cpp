@@ -163,7 +163,7 @@ namespace zyemu::codegen
         return StatusCode::success;
     }
 
-    static Result<Reg> allocateGpReg(GeneratorState& state, Reg preferredReg = {})
+    Result<Reg> allocateGpReg(GeneratorState& state, Reg preferredReg /*= {}*/)
     {
         if (state.freeGpRegs.empty())
         {
@@ -196,7 +196,7 @@ namespace zyemu::codegen
         return { res };
     }
 
-    static Result<Reg> allocateSimdReg(GeneratorState& state, Reg preferredReg = {})
+    Result<Reg> allocateSimdReg(GeneratorState& state, Reg preferredReg /*= {}*/)
     {
         if (state.freeSimdRegs.empty())
         {
@@ -416,16 +416,6 @@ namespace zyemu::codegen
         else
         {
             state.regStatus = *regStatus;
-        }
-
-        // Allocate a temporary register.
-        if (auto regTemp = allocateGpReg(state, x86::r14); regTemp.hasError())
-        {
-            return regTemp.getError();
-        }
-        else
-        {
-            state.regTemp = *regTemp;
         }
 
         return StatusCode::success;
@@ -669,21 +659,30 @@ namespace zyemu::codegen
 
     static StatusCode generateInstructionHandler(GeneratorState& state, const DecodedInstruction& instr)
     {
+        auto& ar = state.assembler;
+
         // Setup the generator state.
         if (auto res = initGenerateState(state, instr); res != StatusCode::success)
         {
             return res;
         }
 
+        // Generate the body of the instruction handler.
+        if (auto res = generateHandlerBody(state, instr); res != StatusCode::success)
+        {
+            return res;
+        }
+
+        // Emit before the body.
+        ar.setInsertPos(0);
+
         if (auto res = generateEntry(state, instr); res != StatusCode::success)
         {
             return res;
         }
 
-        if (auto res = generateHandlerBody(state, instr); res != StatusCode::success)
-        {
-            return res;
-        }
+        // Emit after the body.
+        ar.setInsertPos(ar.getNodeCount());
 
         if (auto res = generateExit(state, instr); res != StatusCode::success)
         {

@@ -159,11 +159,10 @@ namespace zyemu::tests
     // clang-format off
 #if defined(_DEBUG) || 0
     static const std::vector<std::string> allTestFiles = {
-        "testdata/div.txt",
+        "testdata/idiv.txt",
         //"testdata/and.txt",
         //"testdata/shld.txt",
         //"testdata/mul.txt",
-        //"testdata/idiv.txt",
         //"testdata/div.txt",
         //"testdata/cmppd.txt",
     };
