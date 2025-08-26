@@ -55,11 +55,19 @@ namespace zyemu
         {
             return writeMem(address, std::span<const std::byte>(reinterpret_cast<const std::byte*>(data.data()), data.size()));
         }
+        template<typename T> StatusCode writeMemValue(std::uint64_t address, const T& value)
+        {
+            return writeMem(address, { reinterpret_cast<const std::byte*>(&value), sizeof(T) });
+        }
 
         StatusCode readMem(std::uint64_t address, std::span<std::byte> buffer);
         StatusCode readMem(std::uint64_t address, std::span<std::uint8_t> buffer)
         {
             return readMem(address, std::span<std::byte>(reinterpret_cast<std::byte*>(buffer.data()), buffer.size()));
+        }
+        template<typename T> StatusCode readMemValue(std::uint64_t address, T& value)
+        {
+            return readMem(address, { reinterpret_cast<std::byte*>(&value), sizeof(T) });
         }
     };
 

@@ -55,8 +55,8 @@ type = "executable"
 sources = [
     "src/tests/main.cpp",
     "src/tests/testdata.cpp",
-    "src/tests/tests/emulation.cpp",
-    "src/tests/tests/emulation.jcc.cpp",
+    "src/tests/tests/emulation.controlflow.cpp",
+    "src/tests/tests/emulation.memory.cpp",
     "src/tests/tests/emulation.testdata.cpp",
     "src/tests/tests/registers.cpp",
 ]

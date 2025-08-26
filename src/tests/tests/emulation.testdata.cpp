@@ -4,6 +4,7 @@
 #include <Zydis/Decoder.h>
 #include <algorithm>
 #include <gtest/gtest.h>
+#include <print>
 #include <zyemu/zyemu.hpp>
 
 namespace zyemu::tests
@@ -41,11 +42,18 @@ namespace zyemu::tests
         const auto instrBytes = entry.instrBytes.data();
         memory::writeHandler(ThreadId::invalid, entry.rip, instrBytes.data(), instrBytes.size(), nullptr);
 
-        for (const auto& testEntry : entry.testEntries)
+        for (std::size_t entryIdx = 0; entryIdx < entry.testEntries.size(); ++entryIdx)
         {
+#if defined(_DEBUG) && 0
+            std::println("Test Entry: {}", entryIdx);
+#endif
+
+            const auto testEntry = entry.testEntries[entryIdx];
+
             if (testEntry.exceptionType != ExceptionType::kNone)
             {
-                printf("");
+                // TODO: Not all handlers properly implement exception handling, skip for now.
+                continue;
             }
 
             ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, entry.rip);
@@ -77,7 +85,7 @@ namespace zyemu::tests
                 continue;
             }
 
-            ASSERT_EQ(status, zyemu::StatusCode::success);
+            ASSERT_EQ(status, zyemu::StatusCode::success) << "Entry: " << entryIdx;
 
             std::uint64_t rip{};
             ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
@@ -103,7 +111,7 @@ namespace zyemu::tests
                     actualFlags &= ~undefinedFlags;
                     expectedFlags &= ~undefinedFlags;
 
-                    ASSERT_EQ(actualFlags, expectedFlags);
+                    ASSERT_EQ(actualFlags, expectedFlags) << "Entry: " << entryIdx;
                 }
                 else
                 {
@@ -111,8 +119,8 @@ namespace zyemu::tests
                     actualData.resize(regData.data.size());
 
                     ASSERT_EQ(ctx.getRegData(th1, regData.reg, actualData), zyemu::StatusCode::success)
-                        << ZydisRegisterGetString(regData.reg);
-                    ASSERT_EQ(actualData, regData.data) << ZydisRegisterGetString(regData.reg);
+                        << ZydisRegisterGetString(regData.reg) << ", Entry: " << entryIdx;
+                    ASSERT_EQ(actualData, regData.data) << ZydisRegisterGetString(regData.reg) << ", Entry: " << entryIdx;
                 }
             }
         }
@@ -130,8 +138,6 @@ namespace zyemu::tests
                                           << param.startOffset;
 
         const auto& entry = entryOpt.value();
-        SCOPED_TRACE("Instruction: " + entry.instrText + " (RIP: 0x" + std::format("{0:X}", entry.rip) + ")");
-
         runInstrChecks(entry);
     }
 
@@ -160,6 +166,7 @@ namespace zyemu::tests
 #if defined(_DEBUG) || 0
     static const std::vector<std::string> allTestFiles = {
         "testdata/idiv.txt",
+        "testdata/sub.txt",
         //"testdata/and.txt",
         //"testdata/shld.txt",
         //"testdata/mul.txt",

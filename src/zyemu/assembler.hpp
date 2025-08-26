@@ -222,6 +222,11 @@ namespace zyemu::x86
             return emit(ZYDIS_MNEMONIC_NEG, dst);
         }
 
+        template<typename Op0, typename Op1> Assembler& sbb(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_SBB, dst, src);
+        }
+
         template<typename Op0, typename Op1> Assembler& adc(const Op0& dst, const Op1& src)
         {
             return emit(ZYDIS_MNEMONIC_ADC, dst, src);
@@ -252,6 +257,36 @@ namespace zyemu::x86
             return emit(ZYDIS_MNEMONIC_IMUL, dst, src, imm);
         }
 
+        template<typename Op0, typename Op1> Assembler& imul(const Op0& dst, const Op1& src, const Reg& imm)
+        {
+            return emit(ZYDIS_MNEMONIC_IMUL, dst, src, imm);
+        }
+
+        template<typename Op0, typename Op1> Assembler& imul(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_IMUL, dst, src);
+        }
+
+        template<typename Op0> Assembler& imul(const Op0& dst)
+        {
+            return emit(ZYDIS_MNEMONIC_IMUL, dst);
+        }
+
+        template<typename Op0, typename Op1> Assembler& bt(const Op0& dst, const Op1& src)
+        {
+            return emit(ZYDIS_MNEMONIC_BT, dst, src);
+        }
+
+        Assembler& jz(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JZ, label);
+        }
+
+        Assembler& je(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JZ, label);
+        }
+
         Assembler& jnz(const Label& label)
         {
             return emit(ZYDIS_MNEMONIC_JNZ, label);
@@ -260,6 +295,16 @@ namespace zyemu::x86
         Assembler& jb(const Label& label)
         {
             return emit(ZYDIS_MNEMONIC_JB, label);
+        }
+
+        Assembler& jc(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JB, label);
+        }
+
+        Assembler& jle(const Label& label)
+        {
+            return emit(ZYDIS_MNEMONIC_JLE, label);
         }
 
         Assembler& ja(const Label& label)
@@ -280,11 +325,6 @@ namespace zyemu::x86
         Assembler& jge(const Label& label)
         {
             return emit(ZYDIS_MNEMONIC_JNL, label);
-        }
-
-        Assembler& jz(const Label& label)
-        {
-            return emit(ZYDIS_MNEMONIC_JZ, label);
         }
 
         Assembler& jae(const Label& label)

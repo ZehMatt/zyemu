@@ -734,6 +734,19 @@ namespace zyemu::codegen
             }
         }
 
+        // Adjust rip-rel memory operands to have absolute immediate.
+        for (std::size_t i = 0; i < instr.decoded.operand_count; ++i)
+        {
+            auto& op = instr.operands[i];
+            if (op.type == ZYDIS_OPERAND_TYPE_MEMORY && op.mem.base == ZYDIS_REGISTER_RIP)
+            {
+                op.mem.base = ZYDIS_REGISTER_NONE;
+
+                // Adjust disp.
+                op.mem.disp.value += ip + instr.decoded.length;
+            }
+        }
+
         // This heuristic kind of sucks but we require to know what register must be used to substitute the memory operand.
         {
             OperandKind usedOperandKind = OperandKind::Invalid;

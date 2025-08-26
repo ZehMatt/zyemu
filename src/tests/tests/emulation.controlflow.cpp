@@ -19,11 +19,11 @@ namespace zyemu::tests
     static constexpr std::uint64_t kFallthrough = kBase + 2;
     static constexpr std::int8_t kDisplacement = 5;
 
-    class EmulationJumpTests : public ::testing::TestWithParam<JumpTestParam>
+    class EmulationCondJumpTests : public ::testing::TestWithParam<JumpTestParam>
     {
     };
 
-    TEST_P(EmulationJumpTests, ConditionalJump)
+    TEST_P(EmulationCondJumpTests, Jcc)
     {
         const auto& p = GetParam();
 
@@ -52,7 +52,7 @@ namespace zyemu::tests
 
     // clang-format off
     INSTANTIATE_TEST_SUITE_P(
-        AllConditionalJumps, EmulationJumpTests,
+        AllConditionalJumps, EmulationCondJumpTests,
         ::testing::Values(
             // JO (0x70) - overflow flag
             JumpTestParam{ "JO_OF0", 0x70, 0, kFallthrough },
@@ -130,5 +130,121 @@ namespace zyemu::tests
         });
 
     // clang-format on
+
+    TEST(EmulationTests, testJmpRel8)
+    {
+        constexpr std::uint8_t kTestShellCode[] = {
+            0xEB, 0x0E, // jmp 0x0000000004001010
+        };
+
+        std::memcpy(memory::kShellCode, kTestShellCode, sizeof(kTestShellCode));
+
+        zyemu::CPU ctx{};
+        ctx.setMode(ZydisMachineMode::ZYDIS_MACHINE_MODE_LONG_64);
+        ctx.setMemReadHandler(memory::readHandler, nullptr);
+        ctx.setMemWriteHandler(memory::writeHandler, nullptr);
+
+        auto th1 = ctx.createThread();
+        ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, memory::kShellCodeBaseAddress);
+
+        auto status = ctx.step(th1);
+        ASSERT_EQ(status, zyemu::StatusCode::success);
+
+        std::uint64_t rip{};
+        ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
+
+        ASSERT_EQ(rip, memory::kShellCodeBaseAddress + 0x10);
+    }
+
+    TEST(EmulationTests, testJmpRel32)
+    {
+        constexpr std::uint8_t kTestShellCode[] = {
+            0xE9, 0xFB, 0x00, 0x00, 0x00, // jmp 0x0000000004001100
+        };
+
+        std::memcpy(memory::kShellCode, kTestShellCode, sizeof(kTestShellCode));
+
+        zyemu::CPU ctx{};
+        ctx.setMode(ZydisMachineMode::ZYDIS_MACHINE_MODE_LONG_64);
+        ctx.setMemReadHandler(memory::readHandler, nullptr);
+        ctx.setMemWriteHandler(memory::writeHandler, nullptr);
+
+        auto th1 = ctx.createThread();
+        ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, memory::kShellCodeBaseAddress);
+
+        auto status = ctx.step(th1);
+        ASSERT_EQ(status, zyemu::StatusCode::success);
+
+        std::uint64_t rip{};
+        ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
+
+        ASSERT_EQ(rip, memory::kShellCodeBaseAddress + 0x100);
+    }
+
+    TEST(EmulationTests, testJmpMem)
+    {
+        constexpr std::uint8_t kTestShellCode[] = {
+            0xFF, 0x25, 0x00, 0x00, 0x00, 0x00,             // jmp qword ptr ds:[0x0000000004000006]
+            0x00, 0x01, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, // dq 4000100
+        };
+
+        std::memcpy(memory::kShellCode, kTestShellCode, sizeof(kTestShellCode));
+
+        zyemu::CPU ctx{};
+        ctx.setMode(ZydisMachineMode::ZYDIS_MACHINE_MODE_LONG_64);
+        ctx.setMemReadHandler(memory::readHandler, nullptr);
+        ctx.setMemWriteHandler(memory::writeHandler, nullptr);
+
+        auto th1 = ctx.createThread();
+        ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, memory::kShellCodeBaseAddress);
+
+        auto status = ctx.step(th1);
+        ASSERT_EQ(status, zyemu::StatusCode::success);
+
+        std::uint64_t rip{};
+        ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
+
+        ASSERT_EQ(rip, memory::kShellCodeBaseAddress + 0x100);
+    }
+
+    TEST(EmulationTests, testCallRel32)
+    {
+        constexpr std::uint8_t kTestShellCode[] = {
+            0xE8, 0x00, 0x00, 0x00, 0x00, // call 0x0000000004000005
+        };
+
+        std::memcpy(memory::kShellCode, kTestShellCode, sizeof(kTestShellCode));
+
+        std::uint64_t testValue{ 0x1AF20384ECAB27F };
+        std::memcpy(memory::kStackSpace + memory::kStackBaseOffset, &testValue, sizeof(testValue));
+
+        zyemu::CPU ctx{};
+        ctx.setMode(ZydisMachineMode::ZYDIS_MACHINE_MODE_LONG_64);
+        ctx.setMemReadHandler(memory::readHandler, nullptr);
+        ctx.setMemWriteHandler(memory::writeHandler, nullptr);
+
+        auto th1 = ctx.createThread();
+
+        ctx.setRegValue(th1, ZYDIS_REGISTER_RSP, memory::kStackBase);
+        ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, memory::kShellCodeBaseAddress);
+
+        auto status = ctx.step(th1);
+        ASSERT_EQ(status, zyemu::StatusCode::success);
+
+        std::uint64_t rip{};
+        ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
+
+        ASSERT_EQ(rip, memory::kShellCodeBaseAddress + sizeof(kTestShellCode));
+
+        std::uint64_t regSp{};
+        ctx.getRegValue(th1, ZYDIS_REGISTER_RSP, regSp);
+
+        ASSERT_EQ(regSp, memory::kStackBase - 0x08);
+
+        std::uint64_t stackValue{};
+        ctx.readMemValue(regSp, stackValue);
+
+        ASSERT_EQ(stackValue, memory::kShellCodeBaseAddress + sizeof(kTestShellCode));
+    }
 
 } // namespace zyemu::tests
