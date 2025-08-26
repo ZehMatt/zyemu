@@ -165,4 +165,72 @@ namespace zyemu::tests
         ASSERT_EQ(stackValue, expectedValue);
     }
 
+    TEST(EmulationTests, testPushRax)
+    {
+        constexpr std::uint8_t kTestShellCode[] = {
+            0x50 // push rax
+        };
+
+        std::memcpy(memory::kShellCode, kTestShellCode, sizeof(kTestShellCode));
+        std::memset(memory::kStackSpace, 0xCC, sizeof(memory::kStackSpace));
+
+        zyemu::CPU ctx{};
+        ctx.setMode(ZydisMachineMode::ZYDIS_MACHINE_MODE_LONG_64);
+        ctx.setMemReadHandler(memory::readHandler, nullptr);
+        ctx.setMemWriteHandler(memory::writeHandler, nullptr);
+
+        auto th1 = ctx.createThread();
+
+        ctx.setRegValue(th1, ZYDIS_REGISTER_RSP, memory::kStackBase);
+        ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, memory::kShellCodeBaseAddress);
+
+        std::uint64_t testValue{ 0x1122334455667788ULL };
+        ctx.setRegValue(th1, ZYDIS_REGISTER_RAX, testValue);
+
+        auto status = ctx.step(th1);
+        ASSERT_EQ(status, zyemu::StatusCode::success);
+
+        std::uint64_t rsp{};
+        ctx.getRegValue(th1, ZYDIS_REGISTER_RSP, rsp);
+        ASSERT_EQ(rsp, memory::kStackBase - 8);
+
+        std::uint64_t stackValue{};
+        std::memcpy(&stackValue, memory::kStackSpace + memory::kStackBaseOffset - 8, sizeof(stackValue));
+        ASSERT_EQ(stackValue, testValue);
+    }
+
+    TEST(EmulationTests, testPopRax)
+    {
+        constexpr std::uint8_t kTestShellCode[] = {
+            0x58 // pop rax
+        };
+
+        std::memcpy(memory::kShellCode, kTestShellCode, sizeof(kTestShellCode));
+        std::memset(memory::kStackSpace, 0xCC, sizeof(memory::kStackSpace));
+
+        zyemu::CPU ctx{};
+        ctx.setMode(ZydisMachineMode::ZYDIS_MACHINE_MODE_LONG_64);
+        ctx.setMemReadHandler(memory::readHandler, nullptr);
+        ctx.setMemWriteHandler(memory::writeHandler, nullptr);
+
+        auto th1 = ctx.createThread();
+
+        std::uint64_t testValue{ 0xAABBCCDDEEFF0011ULL };
+        std::memcpy(memory::kStackSpace + memory::kStackBaseOffset - 8, &testValue, sizeof(testValue));
+
+        ctx.setRegValue(th1, ZYDIS_REGISTER_RSP, memory::kStackBase - 8);
+        ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, memory::kShellCodeBaseAddress);
+
+        auto status = ctx.step(th1);
+        ASSERT_EQ(status, zyemu::StatusCode::success);
+
+        std::uint64_t rsp{};
+        ctx.getRegValue(th1, ZYDIS_REGISTER_RSP, rsp);
+        ASSERT_EQ(rsp, memory::kStackBase);
+
+        std::uint64_t rax{};
+        ctx.getRegValue(th1, ZYDIS_REGISTER_RAX, rax);
+        ASSERT_EQ(rax, testValue);
+    }
+
 } // namespace zyemu::tests
