@@ -653,7 +653,7 @@ namespace zyemu::codegen
         return StatusCode::success;
     }
 
-        static StatusCode generateHandlerIdiv(GeneratorState& state, const DecodedInstruction& instr)
+    static StatusCode generateHandlerIdiv(GeneratorState& state, const DecodedInstruction& instr)
     {
         // Signed divide RDX:RAX by r/m, with result stored in RAX := Quotient, RDX := Remainder.
         auto& ar = state.assembler;
@@ -672,9 +672,11 @@ namespace zyemu::codegen
             return opDivisor.getError();
         }
 
-        // --- Divide-by-zero check (same as DIV) ---
         ar.cmp(*opDivisor, Imm(0));
         ar.jz(lblDivideByZero);
+
+#if 0
+        // This is broken for some cases where dh, ah and so on are used.
 
         // --- Exact signed overflow pre-check for IDIV r/m8 (AX / r/m8) ---
         // Quotient must fit in int8 [-128, 127] with truncation toward zero.
@@ -937,6 +939,7 @@ namespace zyemu::codegen
         {
             // TODO: Quite complicated due to 128-bit dividend, need to implement 128-bit comparisons.
         }
+#endif
 
         // Perform the actual signed division
         Instruction idivIns;
@@ -977,7 +980,7 @@ namespace zyemu::codegen
 
         // Specific handlers.
         assignHandler(ZYDIS_MNEMONIC_DIV, generateHandlerDiv);
-        // assignHandler(ZYDIS_MNEMONIC_IDIV, generateHandlerIdiv);
+        assignHandler(ZYDIS_MNEMONIC_IDIV, generateHandlerIdiv);
 
         assignHandler(ZYDIS_MNEMONIC_CALL, generateHandlerCall);
         assignHandler(ZYDIS_MNEMONIC_PUSH, generateHandlerPush);
