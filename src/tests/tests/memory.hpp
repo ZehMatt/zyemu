@@ -9,7 +9,7 @@ namespace zyemu::tests::memory
     static constexpr std::uint64_t kShellCodeBaseAddress = 0x0000000004000000;
     static std::uint8_t kShellCode[0x1000] = {};
 
-    static constexpr std::uint64_t kStackAddress = 0x00007FFB67A49000;
+    static constexpr std::uint64_t kStackAddress = 0x0000000008000000;
     static constexpr std::uint64_t kStackBaseOffset = 0x500;
     static constexpr std::uint64_t kStackBase = kStackAddress + kStackBaseOffset;
     static std::uint8_t kStackSpace[0x1000] = {};

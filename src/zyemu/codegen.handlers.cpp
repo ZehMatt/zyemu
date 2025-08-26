@@ -66,11 +66,6 @@ namespace zyemu::codegen
                 state.assembler.pop(x86::rax);
             }
         }
-
-        ~CallSaveRestore()
-        {
-            restore();
-        }
     };
 
     // Memory operation helper functions
@@ -184,10 +179,8 @@ namespace zyemu::codegen
         const auto ctxSpInfo = getContextRegInfo(state.mode, x86::rsp);
         const auto regSp = getRemappedReg(state, ZYDIS_REGISTER_RSP);
 
-        // Load current SP and adjust it
-        ar.mov(regSp, x86::qword_ptr(baseReg, ctxSpInfo.offset));
+        // Adjust SP.
         ar.sub(regSp, Imm(bitSize / 8));
-        ar.mov(x86::qword_ptr(baseReg, ctxSpInfo.offset), regSp); // Update SP in context
 
         // Create memory operand for stack location
         Mem stackMem{};
@@ -205,9 +198,6 @@ namespace zyemu::codegen
         const auto ctxSpInfo = getContextRegInfo(state.mode, x86::rsp);
         const auto regSp = getRemappedReg(state, ZYDIS_REGISTER_RSP);
 
-        // Load current SP
-        ar.mov(regSp, x86::qword_ptr(baseReg, ctxSpInfo.offset));
-
         // Create memory operand for stack location
         Mem stackMem{};
         stackMem.base = regSp;
@@ -220,7 +210,6 @@ namespace zyemu::codegen
 
         // Adjust SP
         ar.add(regSp, Imm(bitSize / 8));
-        ar.mov(x86::qword_ptr(baseReg, ctxSpInfo.offset), regSp); // Update SP in context
 
         // Return memory operand pointing to the buffer
         Mem bufferMem{};
@@ -443,6 +432,50 @@ namespace zyemu::codegen
         ar.mov(x86::qword_ptr(baseReg, ctxIpInfo.offset), *regTemp);
 
         // Status.
+        ar.mov(regStatus, Imm(StatusCode::success));
+        return StatusCode::success;
+    }
+
+    static StatusCode generateHandlerRet(GeneratorState& state, const DecodedInstruction& instr)
+    {
+        auto& ar = state.assembler;
+        const auto baseReg = state.regCtx;
+        const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
+        const auto ctxSpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RSP);
+        const auto regSp = getRemappedReg(state, ZYDIS_REGISTER_RSP);
+        const auto regStatus = state.regStatus;
+
+        // Pop return address from stack
+        auto poppedValue = popFromStack(state, 64);
+        if (poppedValue.hasError())
+        {
+            return poppedValue.getError();
+        }
+
+        // Load popped value into temp register and set IP
+        auto tempReg = allocateGpReg(state);
+        if (tempReg.hasError())
+        {
+            return tempReg.getError();
+        }
+
+        if (std::holds_alternative<Mem>(*poppedValue))
+        {
+            ar.mov(*tempReg, std::get<Mem>(*poppedValue));
+        }
+        ar.mov(x86::qword_ptr(baseReg, ctxIpInfo.offset), *tempReg);
+
+        // If immediate operand exists, adjust SP further
+        if (instr.decoded.operand_count_visible > 0)
+        {
+            const auto& op = instr.operands[0];
+            if (op.type == ZYDIS_OPERAND_TYPE_IMMEDIATE)
+            {
+                ar.add(regSp, Imm(op.imm.value.u));
+            }
+        }
+
+        // Set status
         ar.mov(regStatus, Imm(StatusCode::success));
         return StatusCode::success;
     }
@@ -983,6 +1016,8 @@ namespace zyemu::codegen
         assignHandler(ZYDIS_MNEMONIC_IDIV, generateHandlerIdiv);
 
         assignHandler(ZYDIS_MNEMONIC_CALL, generateHandlerCall);
+        assignHandler(ZYDIS_MNEMONIC_RET, generateHandlerRet);
+
         assignHandler(ZYDIS_MNEMONIC_PUSH, generateHandlerPush);
         assignHandler(ZYDIS_MNEMONIC_POP, generateHandlerPop);
 
