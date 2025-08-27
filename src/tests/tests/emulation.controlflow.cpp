@@ -145,13 +145,13 @@ namespace zyemu::tests
         ctx.setMemWriteHandler(memory::writeHandler, nullptr);
 
         auto th1 = ctx.createThread();
-        ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, memory::kShellCodeBaseAddress);
+        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rip{};
-        ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
+        ctx.getRegValue(th1, x86::rip, rip);
 
         ASSERT_EQ(rip, memory::kShellCodeBaseAddress + 0x10);
     }
@@ -170,13 +170,13 @@ namespace zyemu::tests
         ctx.setMemWriteHandler(memory::writeHandler, nullptr);
 
         auto th1 = ctx.createThread();
-        ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, memory::kShellCodeBaseAddress);
+        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rip{};
-        ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
+        ctx.getRegValue(th1, x86::rip, rip);
 
         ASSERT_EQ(rip, memory::kShellCodeBaseAddress + 0x100);
     }
@@ -196,13 +196,13 @@ namespace zyemu::tests
         ctx.setMemWriteHandler(memory::writeHandler, nullptr);
 
         auto th1 = ctx.createThread();
-        ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, memory::kShellCodeBaseAddress);
+        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rip{};
-        ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
+        ctx.getRegValue(th1, x86::rip, rip);
 
         ASSERT_EQ(rip, memory::kShellCodeBaseAddress + 0x100);
     }
@@ -225,19 +225,19 @@ namespace zyemu::tests
 
         auto th1 = ctx.createThread();
 
-        ctx.setRegValue(th1, ZYDIS_REGISTER_RSP, memory::kStackBase);
-        ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, memory::kShellCodeBaseAddress);
+        ctx.setRegValue(th1, x86::rsp, memory::kStackBase);
+        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rip{};
-        ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
+        ctx.getRegValue(th1, x86::rip, rip);
 
         ASSERT_EQ(rip, memory::kShellCodeBaseAddress + sizeof(kTestShellCode));
 
         std::uint64_t regSp{};
-        ctx.getRegValue(th1, ZYDIS_REGISTER_RSP, regSp);
+        ctx.getRegValue(th1, x86::rsp, regSp);
 
         ASSERT_EQ(regSp, memory::kStackBase - 0x08);
 
@@ -267,19 +267,19 @@ namespace zyemu::tests
         ctx.setMemWriteHandler(memory::writeHandler, nullptr);
 
         auto th1 = ctx.createThread();
-        ctx.setRegValue(th1, ZYDIS_REGISTER_RSP, memory::kStackBase);
-        ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, memory::kShellCodeBaseAddress);
+        ctx.setRegValue(th1, x86::rsp, memory::kStackBase);
+        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rip{};
-        ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
+        ctx.getRegValue(th1, x86::rip, rip);
 
         ASSERT_EQ(rip, returnAddr);
         std::uint64_t regSp{};
 
-        ctx.getRegValue(th1, ZYDIS_REGISTER_RSP, regSp);
+        ctx.getRegValue(th1, x86::rsp, regSp);
         ASSERT_EQ(regSp, memory::kStackBase + 0x08 + kImm);
     }
 

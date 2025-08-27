@@ -56,7 +56,7 @@ namespace zyemu::tests
                 continue;
             }
 
-            ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, entry.rip);
+            ctx.setRegValue(th1, x86::rip, entry.rip);
 
             // Clear output regs.
             for (const auto& regData : testEntry.outputs)
@@ -88,7 +88,7 @@ namespace zyemu::tests
             ASSERT_EQ(status, zyemu::StatusCode::success) << "Entry: " << entryIdx;
 
             std::uint64_t rip{};
-            ctx.getRegValue(th1, ZYDIS_REGISTER_RIP, rip);
+            ctx.getRegValue(th1, x86::rip, rip);
 
             ASSERT_EQ(rip, entry.rip + instrBytes.size());
 
