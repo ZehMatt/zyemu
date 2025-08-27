@@ -130,6 +130,7 @@ set(zyemu-tests_SOURCES
 	"src/tests/testdata.cpp"
 	"src/tests/testdata.hpp"
 	"src/tests/tests/emulation.controlflow.cpp"
+	"src/tests/tests/emulation.flags.cpp"
 	"src/tests/tests/emulation.memory.cpp"
 	"src/tests/tests/emulation.testdata.cpp"
 	"src/tests/tests/memory.hpp"

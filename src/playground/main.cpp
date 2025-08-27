@@ -375,8 +375,66 @@ static void testRet()
     assert(rsp == kStackBase + 8);
 }
 
+static void testStepSpeed()
+{
+    using namespace zyemu;
+
+    constexpr std::uint8_t kTestShellCode[] = {
+        0x48, 0x01, 0xD0, // add rax, rdx
+        0x48, 0xFF, 0xC2, // inc rdx
+        0xEB, 0xF8,       // jmp $-8
+    };
+
+    std::memcpy(kShellCode, kTestShellCode, sizeof(kTestShellCode));
+
+    zyemu::CPU ctx{};
+    ctx.setMode(ZydisMachineMode::ZYDIS_MACHINE_MODE_LONG_64);
+    ctx.setMemReadHandler(memReadHandler, nullptr);
+    ctx.setMemWriteHandler(memWriteHandler, nullptr);
+
+    auto th1 = ctx.createThread();
+    ctx.setRegValue(th1, ZYDIS_REGISTER_RSP, kStackBase);
+    ctx.setRegValue(th1, ZYDIS_REGISTER_RIP, kShellCodeAddress);
+
+    // Push return address.
+    const std::uint64_t testRetAddr = 0x0000000150007198;
+    memWriteHandler(th1, kStackBase, &testRetAddr, sizeof(testRetAddr), nullptr);
+
+    std::uint64_t rax{};
+    ctx.setRegValue(th1, x86::rax, rax);
+
+    std::uint64_t rdx{};
+    ctx.setRegValue(th1, x86::rdx, rdx);
+
+    std::size_t stepCount = 0;
+
+    const auto startTime = std::chrono::high_resolution_clock::now();
+    for (;;)
+    {
+        auto status = ctx.step(th1);
+        if (status != zyemu::StatusCode::success)
+        {
+            assert(false);
+        }
+
+        stepCount++;
+
+        ctx.getRegValue(th1, x86::rax, rax);
+        if (rax > 0xFFFFFFFFFFULL)
+        {
+            break;
+        }
+    }
+    const auto endTime = std::chrono::high_resolution_clock::now();
+
+    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+
+    std::print("Executed {} steps in {} ms ({} steps/sec)\n", stepCount, duration, (stepCount * 1000) / duration);
+}
+
 int main()
 {
+    testStepSpeed();
     testRet();
     testCall();
     testPopReg64();

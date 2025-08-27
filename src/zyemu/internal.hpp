@@ -6,7 +6,6 @@
 #include <sfl/map.hpp>
 #include <sfl/segmented_vector.hpp>
 #include <sfl/small_vector.hpp>
-#include <unordered_map>
 #include <zyemu/types.hpp>
 
 namespace zyemu
@@ -61,7 +60,7 @@ namespace zyemu
             std::byte* data{};
         };
 
-        using CodeCacheFunc = StatusCode (ZYEMU_FASTCALL*)(ThreadContext* th);
+        using CodeCacheFunc = StatusCode(ZYEMU_FASTCALL*)(ThreadContext* th);
 
         struct CacheEntry
         {
@@ -137,7 +136,7 @@ namespace zyemu
             void* memWriteUserData{};
 
             sfl::small_vector<CacheRegion, 64> cacheRegions{};
-            sfl::map<InstructionData, CacheEntry> cacheEntries{};
+            std::map<InstructionData, CacheEntry> cacheEntries{};
         };
 
     } // namespace detail

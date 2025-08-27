@@ -196,6 +196,8 @@ namespace zyemu
         InstructionData instrData{};
 
         ZydisDecodedInstruction instr;
+
+        // NOTE: This is not optimal, however we should not read more bytes than it requires to decode.
         for (std::uint8_t i = 0U; i < 15U; i++)
         {
             // Try to read i bytes.

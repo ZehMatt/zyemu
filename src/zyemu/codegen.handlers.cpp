@@ -113,9 +113,21 @@ namespace zyemu::codegen
             {
                 ar.mov(x86::ptr(memDst.bitSize, regFrame, state.memoryRWArea), reg);
             }
+            else if (reg.isXmm())
+            {
+                ar.movups(x86::ptr(memDst.bitSize, regFrame, state.memoryRWArea), reg);
+            }
+            else if (reg.isYmm())
+            {
+                ar.vmovups(x86::ptr(memDst.bitSize, regFrame, state.memoryRWArea), reg);
+            }
+            else if (reg.isMmx())
+            {
+                ar.movq(x86::ptr(memDst.bitSize, regFrame, state.memoryRWArea), reg);
+            }
             else
             {
-                assert(false && "Non-GP register not supported for memory write");
+                assert(false);
             }
         }
         else if (std::holds_alternative<Imm>(src))
@@ -142,8 +154,7 @@ namespace zyemu::codegen
         }
         else
         {
-            // Handle Label or other operand types as needed
-            assert(false && "Unsupported operand type for memory write");
+            assert(false);
         }
 
         CallSaveRestore saver(state);
@@ -543,6 +554,62 @@ namespace zyemu::codegen
 
         // Status
         state.assembler.mov(regStatus, Imm(StatusCode::success));
+        return StatusCode::success;
+    }
+
+    static StatusCode generateHandlerPushFlags(GeneratorState& state, const DecodedInstruction& instr)
+    {
+        auto& ar = state.assembler;
+
+        const auto baseReg = state.regCtx;
+        const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
+        const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
+        const auto regStatus = state.regStatus;
+        
+        const auto regTemp = x86::changeRegSize(regStatus, instr.decoded.operand_width);
+        ar.mov(regTemp, x86::ptr(instr.decoded.operand_width, baseReg, ctxFlagsInfo.offset));
+
+        auto status = pushToStack(state, regTemp, instr.decoded.operand_width);
+        if (status != StatusCode::success)
+        {
+            return status;
+        }
+
+        // Update IP
+        ar.add(x86::qword_ptr(baseReg, ctxIpInfo.offset), Imm(instr.decoded.length));
+
+        // Status
+        ar.mov(regStatus, Imm(StatusCode::success));
+
+        return StatusCode::success;
+    }
+
+    static StatusCode generateHandlerPopFlags(GeneratorState& state, const DecodedInstruction& instr)
+    {
+        auto& ar = state.assembler;
+
+        const auto baseReg = state.regCtx;
+        const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
+        const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
+        const auto regStatus = state.regStatus;
+
+        auto poppedValue = popFromStack(state, instr.decoded.operand_width);
+        if (poppedValue.hasError())
+        {
+            return poppedValue.getError();
+        }
+
+        const auto regTemp = x86::changeRegSize(regStatus, instr.decoded.operand_width);
+        ar.mov(regTemp, *poppedValue);
+
+        ar.mov(x86::ptr(instr.decoded.operand_width, baseReg, ctxFlagsInfo.offset), regTemp);
+
+        // Update IP
+        ar.add(x86::qword_ptr(baseReg, ctxIpInfo.offset), Imm(instr.decoded.length));
+
+        // Status
+        ar.mov(regStatus, Imm(StatusCode::success));
+
         return StatusCode::success;
     }
 
@@ -1014,6 +1081,14 @@ namespace zyemu::codegen
         // Specific handlers.
         assignHandler(ZYDIS_MNEMONIC_DIV, generateHandlerDiv);
         assignHandler(ZYDIS_MNEMONIC_IDIV, generateHandlerIdiv);
+
+        assignHandler(ZYDIS_MNEMONIC_PUSHF, generateHandlerPushFlags);
+        assignHandler(ZYDIS_MNEMONIC_PUSHFD, generateHandlerPushFlags);
+        assignHandler(ZYDIS_MNEMONIC_PUSHFQ, generateHandlerPushFlags);
+
+        assignHandler(ZYDIS_MNEMONIC_POPF, generateHandlerPopFlags);
+        assignHandler(ZYDIS_MNEMONIC_POPFD, generateHandlerPopFlags);
+        assignHandler(ZYDIS_MNEMONIC_POPFQ, generateHandlerPopFlags);
 
         assignHandler(ZYDIS_MNEMONIC_CALL, generateHandlerCall);
         assignHandler(ZYDIS_MNEMONIC_RET, generateHandlerRet);
