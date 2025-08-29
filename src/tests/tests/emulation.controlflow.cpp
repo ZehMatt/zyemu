@@ -145,13 +145,13 @@ namespace zyemu::tests
         ctx.setMemWriteHandler(memory::writeHandler, nullptr);
 
         auto th1 = ctx.createThread();
-        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress), zyemu::StatusCode::success);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rip{};
-        ctx.getRegValue(th1, x86::rip, rip);
+        ASSERT_EQ(ctx.getRegValue(th1, x86::rip, rip), zyemu::StatusCode::success);
 
         ASSERT_EQ(rip, memory::kShellCodeBaseAddress + 0x10);
     }
@@ -170,13 +170,13 @@ namespace zyemu::tests
         ctx.setMemWriteHandler(memory::writeHandler, nullptr);
 
         auto th1 = ctx.createThread();
-        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress), zyemu::StatusCode::success);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rip{};
-        ctx.getRegValue(th1, x86::rip, rip);
+        ASSERT_EQ(ctx.getRegValue(th1, x86::rip, rip), zyemu::StatusCode::success);
 
         ASSERT_EQ(rip, memory::kShellCodeBaseAddress + 0x100);
     }
@@ -196,13 +196,13 @@ namespace zyemu::tests
         ctx.setMemWriteHandler(memory::writeHandler, nullptr);
 
         auto th1 = ctx.createThread();
-        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress), zyemu::StatusCode::success);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rip{};
-        ctx.getRegValue(th1, x86::rip, rip);
+        ASSERT_EQ(ctx.getRegValue(th1, x86::rip, rip), zyemu::StatusCode::success);
 
         ASSERT_EQ(rip, memory::kShellCodeBaseAddress + 0x100);
     }
@@ -225,24 +225,24 @@ namespace zyemu::tests
 
         auto th1 = ctx.createThread();
 
-        ctx.setRegValue(th1, x86::rsp, memory::kStackBase);
-        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rsp, memory::kStackBase), zyemu::StatusCode::success);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress), zyemu::StatusCode::success);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rip{};
-        ctx.getRegValue(th1, x86::rip, rip);
+        ASSERT_EQ(ctx.getRegValue(th1, x86::rip, rip), zyemu::StatusCode::success);
 
         ASSERT_EQ(rip, memory::kShellCodeBaseAddress + sizeof(kTestShellCode));
 
         std::uint64_t regSp{};
-        ctx.getRegValue(th1, x86::rsp, regSp);
+        ASSERT_EQ(ctx.getRegValue(th1, x86::rsp, regSp), zyemu::StatusCode::success);
 
         ASSERT_EQ(regSp, memory::kStackBase - 0x08);
 
         std::uint64_t stackValue{};
-        ctx.readMemValue(regSp, stackValue);
+        ASSERT_EQ(ctx.readMemValue(regSp, stackValue), zyemu::StatusCode::success);
 
         ASSERT_EQ(stackValue, memory::kShellCodeBaseAddress + sizeof(kTestShellCode));
     }
@@ -267,19 +267,19 @@ namespace zyemu::tests
         ctx.setMemWriteHandler(memory::writeHandler, nullptr);
 
         auto th1 = ctx.createThread();
-        ctx.setRegValue(th1, x86::rsp, memory::kStackBase);
-        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rsp, memory::kStackBase), zyemu::StatusCode::success);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress), zyemu::StatusCode::success);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rip{};
-        ctx.getRegValue(th1, x86::rip, rip);
+        ASSERT_EQ(ctx.getRegValue(th1, x86::rip, rip), zyemu::StatusCode::success);
 
         ASSERT_EQ(rip, returnAddr);
         std::uint64_t regSp{};
 
-        ctx.getRegValue(th1, x86::rsp, regSp);
+        ASSERT_EQ(ctx.getRegValue(th1, x86::rsp, regSp), zyemu::StatusCode::success);
         ASSERT_EQ(regSp, memory::kStackBase + 0x08 + kImm);
     }
 

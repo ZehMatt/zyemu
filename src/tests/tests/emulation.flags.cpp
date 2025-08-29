@@ -21,17 +21,17 @@ namespace zyemu::tests
 
         auto th1 = ctx.createThread();
 
-        ctx.setRegValue(th1, x86::rsp, memory::kStackBase);
-        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rsp, memory::kStackBase), zyemu::StatusCode::success);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress), zyemu::StatusCode::success);
 
         std::uint64_t testFlags{ 0x202 };
-        ctx.setRegValue(th1, x86::rflags, testFlags);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rflags, testFlags), zyemu::StatusCode::success);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rsp{};
-        ctx.getRegValue(th1, x86::rsp, rsp);
+        ASSERT_EQ(ctx.getRegValue(th1, x86::rsp, rsp), zyemu::StatusCode::success);
         ASSERT_EQ(rsp, memory::kStackBase - 8);
 
         std::uint64_t stackValue{};
@@ -58,18 +58,18 @@ namespace zyemu::tests
         std::uint64_t testFlags{ 0x202 };
         std::memcpy(memory::kStackSpace + memory::kStackBaseOffset - 8, &testFlags, sizeof(testFlags));
 
-        ctx.setRegValue(th1, x86::rsp, memory::kStackBase - 8);
-        ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rsp, memory::kStackBase - 8), zyemu::StatusCode::success);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress), zyemu::StatusCode::success);
 
         auto status = ctx.step(th1);
         ASSERT_EQ(status, zyemu::StatusCode::success);
 
         std::uint64_t rsp{};
-        ctx.getRegValue(th1, x86::rsp, rsp);
+        ASSERT_EQ(ctx.getRegValue(th1, x86::rsp, rsp), zyemu::StatusCode::success);
         ASSERT_EQ(rsp, memory::kStackBase);
 
         std::uint64_t flagsValue{};
-        ctx.getRegValue(th1, x86::rflags, flagsValue);
+        ASSERT_EQ(ctx.getRegValue(th1, x86::rflags, flagsValue), zyemu::StatusCode::success);
         ASSERT_EQ(flagsValue, testFlags);
     }
 

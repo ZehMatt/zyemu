@@ -56,19 +56,19 @@ namespace zyemu::tests
                 continue;
             }
 
-            ctx.setRegValue(th1, x86::rip, entry.rip);
+            ASSERT_EQ(ctx.setRegValue(th1, x86::rip, entry.rip), zyemu::StatusCode::success);
 
             // Clear output regs.
             for (const auto& regData : testEntry.outputs)
             {
                 sfl::small_vector<std::byte, 16> zeroData(regData.data.size(), {});
-                ctx.setRegData(th1, regData.reg, zeroData);
+                ASSERT_EQ(ctx.setRegData(th1, regData.reg, zeroData), zyemu::StatusCode::success);
             }
 
             // Assign all reg inputs.
             for (const auto& regData : testEntry.inputs)
             {
-                ctx.setRegData(th1, regData.reg, regData.data);
+                ASSERT_EQ(ctx.setRegData(th1, regData.reg, regData.data), zyemu::StatusCode::success);
             }
 
             // Step.
@@ -88,7 +88,7 @@ namespace zyemu::tests
             ASSERT_EQ(status, zyemu::StatusCode::success) << "Entry: " << entryIdx;
 
             std::uint64_t rip{};
-            ctx.getRegValue(th1, x86::rip, rip);
+            ASSERT_EQ(ctx.getRegValue(th1, x86::rip, rip), zyemu::StatusCode::success);
 
             ASSERT_EQ(rip, entry.rip + instrBytes.size());
 
