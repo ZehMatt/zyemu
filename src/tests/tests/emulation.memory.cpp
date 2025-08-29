@@ -58,7 +58,7 @@ namespace zyemu::tests
         std::uint64_t val{};
         ASSERT_EQ(ctx.getRegValue(th1, x86::rax, val), zyemu::StatusCode::success);
 
-        ASSERT_EQ(ctx.setRegValue(th1, x86::rsp, 0), zyemu::StatusCode::success);
+        ASSERT_EQ(ctx.setRegValue(th1, x86::rsp, 0ULL), zyemu::StatusCode::success);
         ASSERT_EQ(ctx.setRegValue(th1, x86::rip, memory::kShellCodeBaseAddress), zyemu::StatusCode::success);
 
         auto status = ctx.step(th1);
