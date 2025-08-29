@@ -368,7 +368,6 @@ namespace zyemu::codegen
     {
         auto& ar = state.assembler;
 
-        // Commonly accessed registers.
         const auto baseReg = state.regCtx;
         const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
         const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
@@ -419,6 +418,7 @@ namespace zyemu::codegen
     static StatusCode generateHandlerCall(GeneratorState& state, const DecodedInstruction& instr)
     {
         auto& ar = state.assembler;
+
         const auto baseReg = state.regCtx;
         const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
         const auto regStatus = state.regStatus;
@@ -449,12 +449,14 @@ namespace zyemu::codegen
 
         // Status.
         ar.mov(regStatus, Imm(StatusCode::success));
+
         return StatusCode::success;
     }
 
     static StatusCode generateHandlerRet(GeneratorState& state, const DecodedInstruction& instr)
     {
         auto& ar = state.assembler;
+
         const auto baseReg = state.regCtx;
         const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
         const auto ctxSpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RSP);
@@ -493,12 +495,17 @@ namespace zyemu::codegen
 
         // Set status
         ar.mov(regStatus, Imm(StatusCode::success));
+
         return StatusCode::success;
     }
 
     static StatusCode generateHandlerPush(GeneratorState& state, const DecodedInstruction& instr)
     {
+        auto& ar = state.assembler;
+
         const auto regStatus = state.regStatus;
+        const auto baseReg = state.regCtx;
+        const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
 
         const auto src = loadOperand(state, instr, 0);
         if (src.hasError())
@@ -513,18 +520,21 @@ namespace zyemu::codegen
         }
 
         // Update IP
-        const auto baseReg = state.regCtx;
-        const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
-        state.assembler.add(x86::qword_ptr(baseReg, ctxIpInfo.offset), Imm(instr.decoded.length));
+        ar.add(x86::qword_ptr(baseReg, ctxIpInfo.offset), Imm(instr.decoded.length));
 
         // Status
-        state.assembler.mov(regStatus, Imm(StatusCode::success));
+        ar.mov(regStatus, Imm(StatusCode::success));
+
         return StatusCode::success;
     }
 
     static StatusCode generateHandlerPop(GeneratorState& state, const DecodedInstruction& instr)
     {
+        auto& ar = state.assembler;
+
         const auto regStatus = state.regStatus;
+        const auto baseReg = state.regCtx;
+        const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
 
         // Pop value from stack
         auto poppedValue = popFromStack(state, instr.decoded.operand_width);
@@ -542,7 +552,7 @@ namespace zyemu::codegen
 
             if (std::holds_alternative<Mem>(*poppedValue))
             {
-                state.assembler.mov(sizedReg, std::get<Mem>(*poppedValue));
+                ar.mov(sizedReg, std::get<Mem>(*poppedValue));
             }
         }
         else if (op.type == ZydisOperandType::ZYDIS_OPERAND_TYPE_MEMORY)
@@ -553,12 +563,11 @@ namespace zyemu::codegen
         }
 
         // Update IP
-        const auto baseReg = state.regCtx;
-        const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
-        state.assembler.add(x86::qword_ptr(baseReg, ctxIpInfo.offset), Imm(instr.decoded.length));
+        ar.add(x86::qword_ptr(baseReg, ctxIpInfo.offset), Imm(instr.decoded.length));
 
         // Status
-        state.assembler.mov(regStatus, Imm(StatusCode::success));
+        ar.mov(regStatus, Imm(StatusCode::success));
+
         return StatusCode::success;
     }
 
