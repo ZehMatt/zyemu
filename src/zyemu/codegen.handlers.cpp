@@ -69,7 +69,7 @@ namespace zyemu::codegen
     };
 
     // Memory operation helper functions
-    static StatusCode performMemoryRead(GeneratorState& state, const Mem& memSrc, size_t bitSize)
+    static StatusCode performMemoryRead(GeneratorState& state, const Mem& memSrc, std::int32_t bitSize)
     {
         auto& ar = state.assembler;
         CallSaveRestore callSave(state);
@@ -100,30 +100,35 @@ namespace zyemu::codegen
         return StatusCode::success;
     }
 
-    static StatusCode performMemoryWrite(GeneratorState& state, const Mem& memDst, const Operand& src)
+    static StatusCode performMemoryWrite(GeneratorState& state, const Mem& memDst, const Operand& src, std::int32_t bitSize)
     {
         auto& ar = state.assembler;
         const auto regFrame = state.regStackFrame;
+
+#ifdef _DEBUG
+        ar.nop();
+#endif
 
         // Write source value to buffer first
         if (std::holds_alternative<Reg>(src))
         {
             const auto& reg = std::get<Reg>(src);
+
             if (reg.isGpFamily())
             {
-                ar.mov(x86::ptr(memDst.bitSize, regFrame, state.memoryRWArea), reg);
+                ar.mov(x86::ptr(bitSize, regFrame, state.memoryRWArea), reg);
             }
             else if (reg.isXmm())
             {
-                ar.movups(x86::ptr(memDst.bitSize, regFrame, state.memoryRWArea), reg);
+                ar.movups(x86::ptr(bitSize, regFrame, state.memoryRWArea), reg);
             }
             else if (reg.isYmm())
             {
-                ar.vmovups(x86::ptr(memDst.bitSize, regFrame, state.memoryRWArea), reg);
+                ar.vmovups(x86::ptr(bitSize, regFrame, state.memoryRWArea), reg);
             }
             else if (reg.isMmx())
             {
-                ar.movq(x86::ptr(memDst.bitSize, regFrame, state.memoryRWArea), reg);
+                ar.movq(x86::ptr(bitSize, regFrame, state.memoryRWArea), reg);
             }
             else
             {
@@ -139,7 +144,7 @@ namespace zyemu::codegen
                 return tempReg.getError();
 
             ar.mov(*tempReg, imm);
-            ar.mov(x86::ptr(memDst.bitSize, regFrame, state.memoryRWArea), x86::changeRegSize(*tempReg, memDst.bitSize));
+            ar.mov(x86::ptr(bitSize, regFrame, state.memoryRWArea), x86::changeRegSize(*tempReg, memDst.bitSize));
         }
         else if (std::holds_alternative<Mem>(src))
         {
@@ -150,7 +155,7 @@ namespace zyemu::codegen
                 return tempReg.getError();
 
             ar.mov(x86::changeRegSize(*tempReg, mem.bitSize), mem);
-            ar.mov(x86::ptr(memDst.bitSize, regFrame, state.memoryRWArea), x86::changeRegSize(*tempReg, memDst.bitSize));
+            ar.mov(x86::ptr(bitSize, regFrame, state.memoryRWArea), x86::changeRegSize(*tempReg, memDst.bitSize));
         }
         else
         {
@@ -165,7 +170,7 @@ namespace zyemu::codegen
         ar.lea(x86::rdx, memDst);                                      // Address
         ar.lea(x86::r8, x86::qword_ptr(regFrame, state.memoryRWArea)); // Buffer
         ar.mov(x86::rcx, state.regCtx);                                // Context
-        ar.mov(x86::r9, Imm(memDst.bitSize / 8));                      // Size in bytes
+        ar.mov(x86::r9, Imm(bitSize / 8));                             // Size in bytes
 
         // Call memory::write
         ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -32));
@@ -183,7 +188,7 @@ namespace zyemu::codegen
     }
 
     // Convenient wrapper for stack operations
-    static StatusCode pushToStack(GeneratorState& state, const Operand& value, size_t bitSize = 64)
+    static StatusCode pushToStack(GeneratorState& state, const Operand& value, std::int32_t bitSize = 64)
     {
         auto& ar = state.assembler;
         const auto baseReg = state.regCtx;
@@ -199,10 +204,10 @@ namespace zyemu::codegen
         stackMem.bitSize = bitSize;
 
         // Perform the write
-        return performMemoryWrite(state, stackMem, value);
+        return performMemoryWrite(state, stackMem, value, bitSize);
     }
 
-    static Result<Operand> popFromStack(GeneratorState& state, size_t bitSize = 64)
+    static Result<Operand> popFromStack(GeneratorState& state, std::int32_t bitSize = 64)
     {
         auto& ar = state.assembler;
         const auto baseReg = state.regCtx;
@@ -262,7 +267,7 @@ namespace zyemu::codegen
         // Process deferred memory writes from register substitution
         for (const auto& [regSrc, memDst] : state.memWrites)
         {
-            auto status = performMemoryWrite(state, memDst, Operand{ regSrc });
+            auto status = performMemoryWrite(state, memDst, Operand{ regSrc }, memDst.bitSize);
             if (status != StatusCode::success)
                 return status;
         }
@@ -565,7 +570,7 @@ namespace zyemu::codegen
         const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
         const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
         const auto regStatus = state.regStatus;
-        
+
         const auto regTemp = x86::changeRegSize(regStatus, instr.decoded.operand_width);
         ar.mov(regTemp, x86::ptr(instr.decoded.operand_width, baseReg, ctxFlagsInfo.offset));
 
@@ -805,6 +810,178 @@ namespace zyemu::codegen
         return StatusCode::success;
     }
 
+    static StatusCode generateHandlerLods(GeneratorState& state, const DecodedInstruction& instr)
+    {
+        auto& ar = state.assembler;
+
+        const auto baseReg = state.regCtx;
+        const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
+        const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
+        const auto regStatus = state.regStatus;
+
+        const auto regSi = getRemappedReg(state, ZYDIS_REGISTER_RSI);
+        const auto regAx = getRemappedReg(state, ZYDIS_REGISTER_RAX);
+
+        const auto bitSize = instr.decoded.operand_width;
+        const auto byteSize = bitSize / 8;
+
+        const auto sizedAx = x86::changeRegSize(regAx, bitSize);
+
+        bool hasRep = (instr.decoded.attributes & ZYDIS_ATTRIB_HAS_REP) != 0;
+
+        // Load flags for DF
+        loadReadFlags(state, instr);
+
+        Label lblEnd, lblLoop, lblDec, lblCont;
+        if (hasRep)
+        {
+            const auto regCx = getRemappedReg(state, ZYDIS_REGISTER_RCX);
+
+            lblEnd = ar.createLabel();
+            lblLoop = ar.createLabel();
+
+            ar.test(regCx, regCx);
+            ar.jz(lblEnd);
+
+            ar.bind(lblLoop);
+        }
+
+        // Define memory source: [RSI]
+        Mem memSrc{};
+        memSrc.base = regSi;
+        memSrc.bitSize = instr.decoded.address_width;
+
+        // Perform memory read
+        auto status = performMemoryRead(state, memSrc, bitSize);
+        if (status != StatusCode::success)
+            return status;
+
+        // Load from buffer to sized AX
+        Mem bufferMem{};
+        bufferMem.base = state.regStackFrame;
+        bufferMem.disp = state.memoryRWArea;
+        bufferMem.bitSize = bitSize;
+
+        ar.mov(sizedAx, bufferMem);
+
+        // Adjust RSI based on DF
+        lblDec = ar.createLabel();
+        lblCont = ar.createLabel();
+
+        ar.pushfq();
+        ar.pop(regStatus);
+        ar.bt(regStatus, 10); // DF bit.
+        ar.jc(lblDec);
+
+        ar.add(regSi, Imm(byteSize));
+        ar.jmp(lblCont);
+
+        ar.bind(lblDec);
+        ar.sub(regSi, Imm(byteSize));
+
+        ar.bind(lblCont);
+
+        if (hasRep)
+        {
+            const auto regCx = getRemappedReg(state, ZYDIS_REGISTER_RCX);
+            ar.dec(regCx);
+            ar.jnz(lblLoop);
+
+            ar.bind(lblEnd);
+        }
+
+        // Update IP
+        ar.add(x86::qword_ptr(baseReg, ctxIpInfo.offset), Imm(instr.decoded.length));
+
+        // Status
+        ar.mov(regStatus, Imm(StatusCode::success));
+
+        return StatusCode::success;
+    }
+
+    static StatusCode generateHandlerStos(GeneratorState& state, const DecodedInstruction& instr)
+    {
+        auto& ar = state.assembler;
+
+        const auto baseReg = state.regCtx;
+        const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
+        const auto ctxFlagsInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RFLAGS);
+        const auto regStatus = state.regStatus;
+
+        const auto regDi = getRemappedReg(state, ZYDIS_REGISTER_RDI);
+        const auto regAx = getRemappedReg(state, ZYDIS_REGISTER_RAX);
+
+        const auto bitSize = instr.decoded.operand_width;
+        const auto byteSize = bitSize / 8;
+
+        const auto sizedAx = x86::changeRegSize(regAx, bitSize);
+
+        bool hasRep = (instr.decoded.attributes & ZYDIS_ATTRIB_HAS_REP) != 0;
+
+        // Load flags for DF
+        loadReadFlags(state, instr);
+
+        Label lblEnd, lblLoop, lblDec, lblCont;
+        if (hasRep)
+        {
+            const auto regCx = getRemappedReg(state, ZYDIS_REGISTER_RCX);
+
+            lblEnd = ar.createLabel();
+            lblLoop = ar.createLabel();
+
+            ar.test(regCx, regCx);
+            ar.jz(lblEnd);
+
+            ar.bind(lblLoop);
+        }
+
+        // Define memory destination: [RDI]
+        Mem memDst{};
+        memDst.base = regDi;
+        memDst.bitSize = instr.decoded.address_width;
+
+        // Perform memory write
+        auto status = performMemoryWrite(state, memDst, sizedAx, instr.decoded.operand_width);
+        if (status != StatusCode::success)
+            return status;
+
+        // Adjust RDI based on DF
+        lblDec = ar.createLabel();
+        lblCont = ar.createLabel();
+
+        ar.pushfq();
+        ar.pop(regStatus);
+        ar.bt(regStatus, 10); // DF bit.
+        ar.jc(lblDec);
+
+        ar.add(regDi, Imm(byteSize));
+        ar.jmp(lblCont);
+
+        ar.bind(lblDec);
+        ar.sub(regDi, Imm(byteSize));
+
+        ar.bind(lblCont);
+
+        if (hasRep)
+        {
+            const auto regCx = getRemappedReg(state, ZYDIS_REGISTER_RCX);
+            ar.dec(regCx);
+            ar.jnz(lblLoop);
+
+            ar.bind(lblEnd);
+        }
+
+        // STOS does not modify flags, so no storeModifiedFlags needed
+
+        // Update IP
+        ar.add(x86::qword_ptr(baseReg, ctxIpInfo.offset), Imm(instr.decoded.length));
+
+        // Status
+        ar.mov(regStatus, Imm(StatusCode::success));
+
+        return StatusCode::success;
+    }
+
     static constexpr auto kBodyHandlers = std::invoke([]() {
         //
         std::array<BodyGeneratorHandler, ZYDIS_MNEMONIC_MAX_VALUE> handlers{};
@@ -859,6 +1036,16 @@ namespace zyemu::codegen
 
         assignHandler(ZYDIS_MNEMONIC_JLE, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVLE>);
         assignHandler(ZYDIS_MNEMONIC_JNLE, generateHandlerJcc<ZYDIS_MNEMONIC_CMOVNLE>);
+
+        assignHandler(ZYDIS_MNEMONIC_LODSB, generateHandlerLods);
+        assignHandler(ZYDIS_MNEMONIC_LODSW, generateHandlerLods);
+        assignHandler(ZYDIS_MNEMONIC_LODSD, generateHandlerLods);
+        assignHandler(ZYDIS_MNEMONIC_LODSQ, generateHandlerLods);
+
+        assignHandler(ZYDIS_MNEMONIC_STOSB, generateHandlerStos);
+        assignHandler(ZYDIS_MNEMONIC_STOSW, generateHandlerStos);
+        assignHandler(ZYDIS_MNEMONIC_STOSD, generateHandlerStos);
+        assignHandler(ZYDIS_MNEMONIC_STOSQ, generateHandlerStos);
 
         return handlers;
     });

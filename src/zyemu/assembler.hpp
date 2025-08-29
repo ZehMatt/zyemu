@@ -82,9 +82,19 @@ namespace zyemu::x86
             return emit(ZYDIS_MNEMONIC_CLD);
         }
 
+        Assembler& nop()
+        {
+            return emit(ZYDIS_MNEMONIC_NOP);
+        }
+
         template<typename TOperand> Assembler& not_(const TOperand& target)
         {
             return emit(ZYDIS_MNEMONIC_NOT, target);
+        }
+
+        template<typename TOperand> Assembler& dec(const TOperand& target)
+        {
+            return emit(ZYDIS_MNEMONIC_DEC, target);
         }
 
         Assembler& cmp(const Reg& lhs, const Reg& rhs)
