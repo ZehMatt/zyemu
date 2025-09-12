@@ -26,6 +26,8 @@ namespace zyemu::codegen
         Reg regStackFrame{};
         Reg regStatus{};
 
+        bool exitSyncRegs{ true };
+
         // Register allocation state.
         sfl::static_vector<Reg, 16> freeGpRegs{};
         sfl::static_vector<Reg, 16> freeSimdRegs{};

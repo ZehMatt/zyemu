@@ -548,42 +548,45 @@ namespace zyemu::codegen
         ar.bind(state.lblExit);
 
         // Synchronize remapped registers back into the virtual context.
-        for (auto regOut : state.regsOut)
+        if (state.exitSyncRegs)
         {
-            if (regOut.isGpFamily())
+            for (auto regOut : state.regsOut)
             {
-                assert(state.regRemap.contains(regOut));
-                const auto remappedReg = state.regRemap[regOut];
-                const auto ctxRegInfo = getContextRegInfo(state.mode, regOut);
-                ar.mov(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
-            }
-            else if (regOut.isSimdFamily())
-            {
-                assert(state.regRemap.contains(regOut));
-                const auto remappedReg = state.regRemap[regOut];
-                const auto ctxRegInfo = getContextRegInfo(state.mode, regOut);
-                if (remappedReg.isXmm())
+                if (regOut.isGpFamily())
                 {
-                    ar.movups(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
+                    assert(state.regRemap.contains(regOut));
+                    const auto remappedReg = state.regRemap[regOut];
+                    const auto ctxRegInfo = getContextRegInfo(state.mode, regOut);
+                    ar.mov(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
                 }
-                else if (remappedReg.isYmm())
+                else if (regOut.isSimdFamily())
                 {
-                    ar.vmovups(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
+                    assert(state.regRemap.contains(regOut));
+                    const auto remappedReg = state.regRemap[regOut];
+                    const auto ctxRegInfo = getContextRegInfo(state.mode, regOut);
+                    if (remappedReg.isXmm())
+                    {
+                        ar.movups(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
+                    }
+                    else if (remappedReg.isYmm())
+                    {
+                        ar.vmovups(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
+                    }
                 }
-            }
-            else if (regOut.isMmx())
-            {
-                assert(state.regRemap.contains(regOut));
-                const auto remappedReg = state.regRemap[regOut];
-                const auto ctxRegInfo = getContextRegInfo(state.mode, regOut);
-                ar.movq(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
-            }
-            else
-            {
-                assert(false);
+                else if (regOut.isMmx())
+                {
+                    assert(state.regRemap.contains(regOut));
+                    const auto remappedReg = state.regRemap[regOut];
+                    const auto ctxRegInfo = getContextRegInfo(state.mode, regOut);
+                    ar.movq(x86::ptr(ctxRegInfo.bitSize, baseReg, ctxRegInfo.offset), remappedReg);
+                }
+                else
+                {
+                    assert(false);
+                }
             }
         }
-
+        
         ar.bind(state.lblExitFailure);
 
         // Move status into eax/rax.

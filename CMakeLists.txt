@@ -54,6 +54,8 @@ set(zyemu_SOURCES
 	"src/zyemu/cpu.cpp"
 	"src/zyemu/cpu.memory.cpp"
 	"src/zyemu/cpu.memory.hpp"
+	"src/zyemu/cpu.software.cpp"
+	"src/zyemu/cpu.software.hpp"
 	"src/zyemu/internal.hpp"
 	"src/zyemu/platform.cpp"
 	"src/zyemu/platform.hpp"

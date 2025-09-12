@@ -194,23 +194,27 @@ namespace zyemu
     static Result<InstructionData> getInstructionData(CPUState* state, ThreadId tid, std::uint64_t address)
     {
         InstructionData instrData{};
-
         ZydisDecodedInstruction instr;
 
-        // NOTE: This is not optimal, however we should not read more bytes than it requires to decode.
-        for (std::uint8_t i = 0U; i < 15U; i++)
+        // TODO: Make this an option on how much memory we read at once, we have to also consider page boundaries.
+        const auto fastDecode = false;
+        const auto optimalReadSize = fastDecode ? 8 : 1;
+
+        for (std::uint8_t i = 0U; i < 15U;)
         {
             // Try to read i bytes.
-            if (auto status = state->memReadHandler(tid, address + i, instrData.buffer().data() + i, 1, state->memReadUserData);
+            if (auto status = state->memReadHandler(
+                    tid, address + i, instrData.buffer().data() + i, optimalReadSize, state->memReadUserData);
                 status != StatusCode::success)
             {
                 return status;
             }
 
-            auto status = ZydisDecoderDecodeInstruction(&state->ldeDecoder, nullptr, instrData.buffer().data(), i + 1, &instr);
+            auto status = ZydisDecoderDecodeInstruction(
+                &state->ldeDecoder, nullptr, instrData.buffer().data(), i + optimalReadSize, &instr);
             if (status == ZYAN_STATUS_SUCCESS)
             {
-                instrData.length = i + 1;
+                instrData.length = i + optimalReadSize;
                 return instrData;
             }
             else if (status == ZYDIS_STATUS_NO_MORE_DATA)

@@ -3,6 +3,7 @@
 #include "assembler.hpp"
 #include "codegen.data.hpp"
 #include "cpu.memory.hpp"
+#include "cpu.software.hpp"
 #include "thread.hpp"
 
 #include <array>
@@ -776,9 +777,6 @@ namespace zyemu::codegen
         const auto regStatus = state.regStatus;
         const auto ctxIpInfo = getContextRegInfo(state.mode, ZYDIS_REGISTER_RIP);
 
-        const auto lblDivideByZero = ar.createLabel();
-        const auto lblQuotientTooLarge = ar.createLabel();
-
         // Load divisor operand
         auto opDivisor = loadOperand(state, instr, 0);
         if (opDivisor.hasError())
@@ -786,35 +784,57 @@ namespace zyemu::codegen
             return opDivisor.getError();
         }
 
-        ar.cmp(*opDivisor, Imm(0));
-        ar.jz(lblDivideByZero);
+        {
+            CallSaveRestore callSave(state);
 
-#if 0
-        // TODO: Add handling of exceptions.
-#endif
+            callSave.saveRaxIfNeeded();
+            callSave.saveRegsForCall();
 
-        // Perform the actual signed division
-        Instruction idivIns;
-        idivIns.operands.push_back(*opDivisor);
-        idivIns.mnemonic = ZYDIS_MNEMONIC_IDIV;
-        ar.emit(idivIns);
+            const auto regFrame = state.regStackFrame;
+
+            // NOTE: Order is important, we assign the value first as rcx could be the input.
+            switch (instr.decoded.operand_width)
+            {
+                case 8:
+                    ar.mov(x86::dl, *opDivisor);
+                    ar.mov(x86::rax, Imm(&software::idiv8));
+                    break;
+                case 16:
+                    ar.mov(x86::dx, *opDivisor);
+                    ar.mov(x86::rax, Imm(&software::idiv16));
+                    break;
+                case 32:
+                    ar.mov(x86::edx, *opDivisor);
+                    ar.mov(x86::rax, Imm(&software::idiv32));
+                    break;
+                case 64:
+                    ar.mov(x86::rdx, *opDivisor);
+                    ar.mov(x86::rax, Imm(&software::idiv64));
+                    break;
+            }
+
+            // Setup call parameters
+            ar.mov(x86::rcx, baseReg);
+
+            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, -32));
+            ar.call(x86::rax);
+            ar.lea(x86::rsp, x86::qword_ptr(x86::rsp, 32));
+
+            callSave.restore();
+        }
+
+        // Already written into context.
+        state.exitSyncRegs = false;
+
+        // Error handling
+        ar.test(state.regStatus, state.regStatus);
+        ar.jnz(state.lblExitFailure);
 
         // Update IP.
         ar.add(x86::qword_ptr(baseReg, ctxIpInfo.offset), Imm(instr.decoded.length));
 
         // Status.
         ar.mov(regStatus, Imm(StatusCode::success));
-
-        ar.jmp(state.lblExit);
-
-        // Failure path(s).
-        ar.bind(lblDivideByZero);
-        ar.mov(state.regStatus, Imm(StatusCode::exceptionIntDivideError));
-        ar.jmp(state.lblExitFailure);
-
-        ar.bind(lblQuotientTooLarge);
-        ar.mov(state.regStatus, Imm(StatusCode::exceptionIntOverflow));
-        ar.jmp(state.lblExitFailure);
 
         return StatusCode::success;
     }

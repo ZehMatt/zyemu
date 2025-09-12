@@ -53,7 +53,7 @@ namespace zyemu::tests
             if (testEntry.exceptionType != ExceptionType::kNone)
             {
                 // TODO: Not all handlers properly implement exception handling, skip for now.
-                continue;
+                //continue;
             }
 
             ASSERT_EQ(ctx.setRegValue(th1, x86::rip, entry.rip), zyemu::StatusCode::success);
