@@ -200,7 +200,7 @@ namespace zyemu
         const auto fastDecode = false;
         const auto optimalReadSize = fastDecode ? 8 : 1;
 
-        for (std::uint8_t i = 0U; i < 15U;)
+        for (std::uint8_t i = 0U; i < 15U; i += optimalReadSize)
         {
             // Try to read i bytes.
             if (auto status = state->memReadHandler(
